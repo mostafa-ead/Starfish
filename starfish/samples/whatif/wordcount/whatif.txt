@@ -1,0 +1,15 @@
+		
+		args = new String[10];
+		args[0] = "-mode";
+		args[1] = "profile";
+		args[2] = "-profile";
+		args[3] = "/home/hero/Starfish/starfish/base/wordcount/profile.xml";
+		args[4] = "-conf";
+		args[5] = "/home/hero/Starfish/starfish/base/wordcount/conf.xml";
+		args[6] = "-input";
+		args[7] = "/home/hero/Starfish/starfish/base/wordcount/input.xml";
+		args[8] = "-cluster";
+		args[9] = "/home/hero/Starfish/starfish/base/wordcount/cluster.xml";
+		
+		
+

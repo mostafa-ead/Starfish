@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+
+###################################################################
+# The WhatIf command script
+#
+# Used to answer job what-if questions on a live Hadoop cluster
+#
+# Author: Herodotos Herodotou
+# Date:   February 11, 2011
+###################################################################
+
+
+# if no args specified, show usage
+if [ $# = 0 ]; then
+  echo "Usage: whatif mode profileFile jar jarFile [mainClass] [genericOptions] args..."
+  echo ""
+  echo "  mode        = job_time|details|profile|timeline|mappers|reducers"
+  echo "  profileFile = the job profile XML file"
+  echo ""
+  echo "Description of modes:"
+  echo "  job_time     Display the execution time of the predicted job"
+  echo "  details      Display the statistics of the predicted job"
+  echo "  profile      Display the predicted profile of the job"
+  echo "  timeline     Display the timeline of the predicted job"
+  echo "  mappers      Display the mappers of the predicted job"
+  echo "  reducers     Display the reducers of the predicted job"
+  echo ""
+  echo "Generic options supported are:"
+  echo "  -conf <configuration file>  an application configuration file"
+  echo "  -D <property=value>         use value for given property"
+  echo "  -files <files>              comma separated files to be copied to cluster"
+  echo "  -libjars <jars>             comma separated jar files to include in classpath"
+  echo "  -archives <archives>        comma separated archives to unarchive on cluster"
+  echo ""
+  exit 1
+fi
+
+# Get the build and bin directories
+current=`pwd`
+bin=`dirname "$0"`
+bin=`cd "$bin"; pwd`
+build=`cd "$bin/../"; pwd`
+cd $current;
+
+MASTER_BTRACE_DIR=$build/hadoop-btrace
+
+
+# Get and check the execution mode
+MODE=$1
+shift
+if [ "$MODE" != "job_time" ] && 
+   [ "$MODE" != "details" ] && 
+   [ "$MODE" != "profile" ] && 
+   [ "$MODE" != "timeline" ] && 
+   [ "$MODE" != "mappers" ] && 
+   [ "$MODE" != "reducers" ]; then
+  echo "ERROR: Unsupported mode: $MODE"
+  echo "       modes = job_time|details|profile|timeline|mappers|reducers"
+  exit -1
+fi
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.whatif.mode=${MODE}"
+
+# Get the job profile file
+PROFILE_FILE=$1
+shift
+if test ! -e $PROFILE_FILE; then
+   echo "ERROR: The file '$PROFILE_FILE' does not exist."
+   exit -1
+fi
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.whatif.profile.file=${PROFILE_FILE}"
+
+
+# Specify the Java agent
+HADOOP_OPTS="${HADOOP_OPTS} -javaagent:${MASTER_BTRACE_DIR}/btrace-agent.jar=dumpClasses=false,debug=false,unsafe=true,probeDescPath=.,noServer=true,stdout,script=${MASTER_BTRACE_DIR}/BTraceWhatIf.class"
+
+# Add the whatif jar to the classpath
+HADOOP_CLASSPATH_OLD=$HADOOP_CLASSPATH
+HADOOP_CLASSPATH=`ls $build/starfish-*-whatif.jar`
+if [ "$HADOOP_CLASSPATH_OLD" != "" ]; then
+  HADOOP_CLASSPATH=${HADOOP_CLASSPATH}:${HADOOP_CLASSPATH_OLD}
+fi
+
+# Add any user-defined jars to the classpath
+OLD_IFS="$IFS"
+IFS=" "
+args=( $@ )
+
+size=${#@};
+for (( i = 0 ; i < size ; i++ ));
+do
+  if [ "${args[${i}]}" = "-libjars" ]; then
+     IFS=","
+     for userjar in ${args[${i}+1]}
+     do
+        HADOOP_CLASSPATH="${HADOOP_CLASSPATH}:$userjar"
+     done
+  fi
+done
+IFS="$OLD_IFS"
+
+# Export the required parameters
+export HADOOP_OPTS
+export HADOOP_CLASSPATH
+
+# Run the command
+${HADOOP_HOME}/bin/hadoop "$@"
+

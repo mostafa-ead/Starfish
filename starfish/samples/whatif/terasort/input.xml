@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Note: 'size' is expected to be in bytes -->
+<input>
+	<split input_index="0" num_splits="200" size="134217728" compress="false"/>
+	<split input_index="0" num_splits="100" size="31457280" compress="false"/>
+</input>
+

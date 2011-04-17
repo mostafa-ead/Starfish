@@ -1,0 +1,97 @@
+Project: Cost-based Job Optimization in Starfish
+Author: Herodotos Herodotou
+Date: Mar 03, 2011
+
+Requirements
+------------
+The Profiler has been used (see profile.readme) to generate the job profile
+
+
+Setup
+-----
+Specify the global optimization options in bin/optimize-config.sh
+
+
+Job Optimization on a live cluster (with actual input data)
+------------------------------------------------------------
+Use the bin/optimize script to perform job optimization:
+
+Usage: 
+  ./bin/optimize mode profileFile jar jarFile [mainClass] [genericOptions] args...
+
+  mode        = run|recommend
+  profileFile = the job profile XML file
+
+Description of modes:
+  run        Run a job with the optimized job configuration settings
+  recommend  Recommend job configuration settings
+
+Examples:
+  ./bin/optimize recommend profile-wordcount.xml jar hadoop-starfish-examples.jar wordcount input output
+
+  ./bin/optimize run profile-wordcount.xml jar hadoop-starfish-examples.jar wordcount input output
+
+
+Job Optimization on a hypothetical cluster (with hypothetical input data)
+-------------------------------------------------------------------------
+Use the starfish-job-optimizer.jar to ask for a recommended configuration:
+
+Usage:
+ bin/hadoop jar starfish_job_optimizer.jar <parameters>
+
+ The optimizer's parameters must be one of:
+   -profile <file> -conf <file>
+       [-mode {full|smart_full|rrs|smart_rrs}]
+       [-scheduler {basic|advanced} -output <file>]
+
+   -profile <file> -input <file> -cluster <file>
+       [-mode {full|smart_full|rrs|smart_rrs}]
+       [-conf <file> -scheduler {basic|advanced} -output <file>]
+
+  -help
+
+Description of optimization modes:
+  full        The optimizer enumerates the full parameter space
+  smart_full  The optimizer uses domain knowledge and the full space
+  rrs         The optimizer uses Recursive Random Search (RRS)
+  smart_rrs   The optimizer uses domain knowledge and the RRS
+
+Description of parameter flags:
+  -profile <file>  The job profile (XML file)
+  -conf <file>     The job configuration file (XML file)
+  -input <file>    The input specifications file (XML file)
+  -cluster <file>  The cluster specifications file (XML file)
+  -mode <option>   The optimization mode
+  -scheduler       The task scheduler to use (basic, advanced)
+  -output <file>   An optional file to write the output to
+  -help            Display detailed instructions
+
+
+Example:
+  hadoop jar starfish-job-optimizer.jar -profile profile-wordcount.xml -conf myconf.xml -input virtual-input.xml -cluster virtual-cluster.xml
+
+
+Notes
+-----
+1. The samples/whatif directory contains sample input.xml and cluster.xml files.
+
+2. You can use the starfish-job-optimizer.jar to get a recommendation on a live
+   Hadoop cluster and avoid using the flags -input and -cluster. In this case,
+   you must specify the job's input in the configuration file using the
+   'mapred.input.dir' property. You must also define the input format class,
+   if not using the TextInputFormat. Finally, if there is any dependency on 
+   external jars, they must be specified using the environmental 
+   variable 'HADOOP_CLASSPATH'.
+
+3. You can use the Starfish Visualizer to ask hypothetical questions regarding
+   the MapReduce job execution.
+
+
+LIMITATIONS
+-----------
+Currently, we do not profile compression! If you plan to use the job profile
+to ask what-if questions regarding compression or to use the Job Optimizer,
+then you must profile the same job twice: once with no compression and once
+with compression. Then use the 'adjust' mode (see below) to create the
+job profile.
+

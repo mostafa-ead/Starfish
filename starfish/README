@@ -1,0 +1,94 @@
+Project: Starfish
+Authors: Herodotos Herodotou, Harold Lim, Nedyalko Borisov,
+         Gang Luo, Liang Dong, Fei Dong
+Website: http://www.cs.duke.edu/starfish
+Date:    April 05, 2011
+
+
+Description
+-----------
+Starfish is a self-tuning system for big data analytics.
+Starfish builds on Hadoop while adapting to user needs and system 
+workloads to provide good performance automatically, without any 
+need for users to understand and manipulate the
+many tuning knobs in Hadoop.
+The novelty in Starfish's approach comes from how it focuses
+simultaneously on different workload granularities---overall workload, 
+workflows, and jobs (procedural and declarative)---as well as across 
+various decision points---provisioning, optimization, scheduling,
+and data layout. This approach enables Starfish to handle the 
+significant interactions arising among choices made at different levels. 
+
+
+Components
+----------
+1. Profiler: The Profiler uses dynamic instrumentation to learn 
+performance models, called job profiles, for unmodified MapReduce programs.
+The Profiler also exposes an interface used to analyze past MapReduce executions.
+
+2. What-if Engine: The What-if Engine uses a mix of simulation and model-based 
+estimation at the phase level of MapReduce job execution, in order to predict
+the performance of a MapReduce job before executed on a Hadoop cluster.
+    
+3. Cost-based Optimizer: The Optimizer enumerates and searches through the
+high-dimensional space of job configuration settings, in order to find the 
+optimal configuration settings to use for executing a MapReduce job.
+
+4. Visualizer: The Visualizer provides a graphical user interface that allows
+the user to (a) analyze past MapReduce job executions, (b) ask hypothetical 
+questions regarding the job behavior and, (c) ultimately optimize the job.
+
+
+Requirements
+------------
+1. Starfish currently only supports Hadoop version 0.20.2
+2. The MapReduce programs must be written using the new Hadoop API
+3. The Visualizer requires JavaFX version 1.2.1
+
+
+Usage:
+------
+1. To use the Profiler and the other terminal user interfaces, please
+   refer to the documentations provided in 'docs'
+2. To use the Starfish Visualizer, please refer to 'visualizer/README'
+
+
+Directories
+-----------
+- bin:     Contains the Starfish shell scripts
+- contrib: Contains various MapReduce programs (compiled separately)
+- docs:    Contains usage documentation
+- lib:     Contains library jars for compiling the source code
+- samples: Contains various sample files
+- src:     Contains the source code for the Starfish project
+- tools:   Contains profiling and monitoring tools
+- visualizer: Contains Starfish's Graphical User Interface (compiled separately)
+
+- build:         Will contain the compiled classes
+- hadoop-btrace: Will contains the compiled BTrace classes and jars
+
+
+Compilation
+-----------
+>> ant
+Compiles the entire source code. The classes, scripts, docs, and jars are 
+placed in the 'build' directory
+
+>> ant test
+Executes all JUnit tests available
+
+>> ant javadoc
+Generated the javadoc documentation in 'build/docs/api'
+
+>> ant clean
+Deletes the 'build' directory
+
+>> ant help
+Prints out all the available ant commands
+
+Notes
+-----
+The contrib projects and the visualizer are compiled separately using ant.
+The ant commands are the same as the above commands, only executed from
+within each project's directory.
+

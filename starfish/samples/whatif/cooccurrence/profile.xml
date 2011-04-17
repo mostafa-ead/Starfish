@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<job_profile id="job_201102151322_0077" num_mappers="30" num_reducers="27">
+<inputs>
+<input>hdfs://ip-10-194-151-159.ec2.internal:50001/user/root/wiki/txt/part-001[0-2]*</input>
+</inputs>
+<map_profile id="average_map_0_job_201102151322_0077" input_index="0" num_tasks="30">
+<counters>
+<counter key="MAP_INPUT_RECORDS" value="17747"/>
+<counter key="MAP_INPUT_BYTES" value="35613117"/>
+<counter key="MAP_OUTPUT_RECORDS" value="22241128"/>
+<counter key="MAP_OUTPUT_BYTES" value="411999707"/>
+<counter key="MAP_NUM_SPILLS" value="27"/>
+<counter key="MAP_NUM_SPILL_MERGES" value="3"/>
+<counter key="MAP_RECS_PER_BUFF_SPILL" value="821327"/>
+<counter key="MAP_SPILL_SIZE" value="11261222"/>
+<counter key="MAP_MAX_UNIQUE_GROUPS" value="180329652"/>
+<counter key="COMBINE_INPUT_RECORDS" value="22241128"/>
+<counter key="COMBINE_OUTPUT_RECORDS" value="14138805"/>
+<counter key="SPILLED_RECORDS" value="38221722"/>
+<counter key="FILE_BYTES_READ" value="521240579"/>
+<counter key="FILE_BYTES_WRITTEN" value="825040800"/>
+<counter key="HDFS_BYTES_READ" value="35613117"/>
+</counters>
+<statistics>
+<statistic key="INPUT_PAIR_WIDTH" value="2068.360814589666"/>
+<statistic key="MAP_SIZE_SEL" value="11.565498815565924"/>
+<statistic key="MAP_PAIRS_SEL" value="1292.3360235555897"/>
+<statistic key="COMBINE_SIZE_SEL" value="0.7403769728707771"/>
+<statistic key="COMBINE_PAIRS_SEL" value="0.635149626122915"/>
+<statistic key="INTERM_COMPRESS_RATIO" value="0.3922171161848638"/>
+<statistic key="STARTUP_MEM" value="4942796.533333333"/>
+<statistic key="SETUP_MEM" value="0.0"/>
+<statistic key="MAP_MEM_PER_RECORD" value="1764.2600336053852"/>
+<statistic key="CLEANUP_MEM" value="0.0"/>
+</statistics>
+<cost_factors>
+<cost_factor key="READ_HDFS_IO_COST" value="47.89739638850865"/>
+<cost_factor key="READ_LOCAL_IO_COST" value="68.95405800224283"/>
+<cost_factor key="WRITE_LOCAL_IO_COST" value="107.97929933926335"/>
+<cost_factor key="MAP_CPU_COST" value="2284139.3182841297"/>
+<cost_factor key="COMBINE_CPU_COST" value="6668.552505443573"/>
+<cost_factor key="PARTITION_CPU_COST" value="1355.2920265675677"/>
+<cost_factor key="SERDE_CPU_COST" value="21727.73154574441"/>
+<cost_factor key="SORT_CPU_COST" value="889.5794439918184"/>
+<cost_factor key="MERGE_CPU_COST" value="168.5909566574866"/>
+<cost_factor key="INTERM_UNCOMPRESS_CPU_COST" value="168.83696415386413"/>
+<cost_factor key="INTERM_COMPRESS_CPU_COST" value="445.8561200074499"/>
+<cost_factor key="SETUP_CPU_COST" value="547366.6666666666"/>
+<cost_factor key="CLEANUP_CPU_COST" value="1.0126283333333334E7"/>
+</cost_factors>
+<timings>
+<timing key="SETUP" value="0.5405666666666668"/>
+<timing key="READ" value="1995.3781714333336"/>
+<timing key="MAP" value="40809.7635491"/>
+<timing key="COLLECT" value="452751.1404151001"/>
+<timing key="CLEANUP" value="20.16646666666667"/>
+<timing key="SPILL" value="484779.88433406677"/>
+<timing key="MERGE" value="125874.11381526668"/>
+</timings>
+</map_profile>
+<reduce_profile id="average_reduce_job_201102151322_0077" num_tasks="27">
+<counters>
+<counter key="REDUCE_SHUFFLE_BYTES" value="339151262"/>
+<counter key="REDUCE_INPUT_GROUPS" value="6678876"/>
+<counter key="REDUCE_INPUT_RECORDS" value="9058315"/>
+<counter key="REDUCE_INPUT_BYTES" value="339151142"/>
+<counter key="REDUCE_OUTPUT_RECORDS" value="6678876"/>
+<counter key="REDUCE_OUTPUT_BYTES" value="135669040"/>
+<counter key="COMBINE_INPUT_RECORDS" value="13081147"/>
+<counter key="COMBINE_OUTPUT_RECORDS" value="6429679"/>
+<counter key="SPILLED_RECORDS" value="9058315"/>
+<counter key="FILE_BYTES_READ" value="204964103"/>
+<counter key="FILE_BYTES_WRITTEN" value="204964103"/>
+<counter key="HDFS_BYTES_WRITTEN" value="135669040"/>
+</counters>
+<statistics>
+<statistic key="REDUCE_PAIRS_PER_GROUP" value="1.3562518390570402"/>
+<statistic key="REDUCE_SIZE_SEL" value="0.40002851682119106"/>
+<statistic key="REDUCE_PAIRS_SEL" value="0.7402200355365386"/>
+<statistic key="COMBINE_SIZE_SEL" value="0.7403769728707771"/>
+<statistic key="COMBINE_PAIRS_SEL" value="0.49192704010631183"/>
+<statistic key="INTERM_COMPRESS_RATIO" value="0.29347424439710934"/>
+<statistic key="OUT_COMPRESS_RATIO" value="0.31352931744915785"/>
+<statistic key="STARTUP_MEM" value="1.3762913155555555E8"/>
+<statistic key="SETUP_MEM" value="75.85185185185185"/>
+<statistic key="REDUCE_MEM_PER_RECORD" value="0.5917017977582566"/>
+<statistic key="CLEANUP_MEM" value="0.0"/>
+</statistics>
+<cost_factors>
+<cost_factor key="WRITE_HDFS_IO_COST" value="197.07719002342196"/>
+<cost_factor key="READ_LOCAL_IO_COST" value="68.95405800224283"/>
+<cost_factor key="WRITE_LOCAL_IO_COST" value="38.10504773239726"/>
+<cost_factor key="NETWORK_COST" value="155.37746282119318"/>
+<cost_factor key="REDUCE_CPU_COST" value="3475.50332785662"/>
+<cost_factor key="COMBINE_CPU_COST" value="6668.552505443573"/>
+<cost_factor key="MERGE_CPU_COST" value="18234.725238778003"/>
+<cost_factor key="INTERM_UNCOMPRESS_CPU_COST" value="168.8369641538641"/>
+<cost_factor key="INTERM_COMPRESS_CPU_COST" value="79.01670747587006"/>
+<cost_factor key="OUTPUT_COMPRESS_CPU_COST" value="490.47488458486947"/>
+<cost_factor key="SETUP_CPU_COST" value="1.1108203703703703E7"/>
+<cost_factor key="CLEANUP_CPU_COST" value="40407.40740740741"/>
+</cost_factors>
+<timings>
+<timing key="SHUFFLE" value="200753.68504785185"/>
+<timing key="SORT" value="8196.664506518518"/>
+<timing key="SETUP" value="18.80233333333333"/>
+<timing key="REDUCE" value="54453.98013970372"/>
+<timing key="WRITE" value="26736.831932518515"/>
+<timing key="CLEANUP" value="0.0412962962962963"/>
+</timings>
+</reduce_profile>
+</job_profile>
+

@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project basedir="." default="jar" name="visualizer">
+	
+	<!-- Properties -->
+	<property environment="env"/>
+	<property name="debuglevel" value="source,lines,vars"/>
+	<property name="target" value="1.6"/>
+	<property name="source" value="1.6"/>
+	
+	<property name="Name" value="Starfish" />
+	<property name="name" value="starfish" />
+	<property name="starfish.version" value="0.1.0" />
+	<property name="final.name" value="${name}-${starfish.version}" />
+	<property name="year" value="2011" />
+
+	<property name="build.dir" value="build" />
+	<property name="lib.dir" value="lib" />
+	<property name="src.dir" value="src" />
+	<property name="src.profile.dir" value="../src/profile" />
+	<property name="src.whatif.dir" value="../src/whatif" />
+	<property name="src.jobopt.dir" value="../src/job_opt" />
+	
+	<property name="proj.title" value="Starfish Visualizer"/>
+	<property name="proj.jar" value="${final.name}-visualizer.jar" />
+
+	<!-- Get the JavaFX install dir and verify it exists -->
+	<property name="javafxc.home" value="${env.JAVAFX_HOME}"/>
+	<available file="${javafxc.home}" type="dir" property="javafx.available"/>
+	<fail unless="javafx.available"
+		message="Install JavaFX 1.2.1 and set environmental variable JAVAFX_HOME"/>
+	
+	<!-- Classpaths -->
+	<path id="javafxc.classpath">
+        <fileset dir="${javafxc.home}/lib">
+            <include name="**/*.jar" /> 
+        </fileset>
+	</path>
+	
+	<taskdef classname="com.sun.tools.javafx.ant.JavaFxAntTask" name="javafxc">
+		<classpath refid="javafxc.classpath" />
+	</taskdef>
+
+    <path id="visualizer.classpath">
+		<pathelement location="${build.dir}" />
+		<fileset dir="${lib.dir}">
+			<include name="**/*.jar"/>
+		</fileset>
+    	<path refid="javafxc.classpath"/>
+	</path>
+	
+	<!-- run command: Prints help information-->
+	<target name="run" depends="jar" description="Executes the visualizer">
+		<exec executable="${javafxc.home}/bin/javafx">
+			<arg value="-jar" />
+			<arg value="${proj.jar}" />
+		</exec>
+	</target>
+
+	
+	<!-- jar command: Creates the jar file -->
+	<target name="jar" depends="build" description="Creates the jar file">
+		<tstamp>
+			<format property="timestamp" pattern="MMM dd yyyy, HH:mm:ss" />
+		</tstamp>
+
+		<delete file="${proj.jar}" />
+		<jar jarfile="${proj.jar}">
+			<fileset dir="${build.dir}" includes="**"/>
+			<zipfileset src="${lib.dir}/commons-cli-1.2.jar" />
+			<zipfileset src="${lib.dir}/commons-logging-1.0.4.jar" />
+			<zipfileset src="${lib.dir}/hadoop-0.20.2-core.jar" />
+
+			<manifest>
+		        <attribute name="Main-Class" 
+		                   value="edu.duke.starfish.visualizer.view.Main"/>
+				<section name="edu/duke/starfish/visualizer">
+					<attribute name="Implementation-Title" value="${proj.title}" />
+					<attribute name="Build-TimeStamp" value="${timestamp}" />
+				</section>
+			</manifest>
+		</jar>
+	</target>
+
+
+	<!-- build command: Compiles the entire project -->
+	<target name="build" depends="init" description="Builds the entire project">
+		<javac 	destdir="${build.dir}" 
+				source="${source}" 
+				target="${target}">
+			<src>
+				<pathelement location="${src.dir}"/>
+				<pathelement location="${src.profile.dir}"/>
+				<pathelement location="${src.whatif.dir}"/>
+				<pathelement location="${src.jobopt.dir}"/>
+			</src>
+
+			<classpath refid="visualizer.classpath" />
+		</javac>
+		<javafxc srcdir="${src.dir}" 
+				includes="**/*.fx" 
+				destdir="${build.dir}"
+				source="${source}" 
+				target="${target}"
+				compilerclasspath="${javafxc.home}/lib/shared/javafxc.jar">
+			<classpath refid="visualizer.classpath" />
+		</javafxc>
+	</target>
+
+	
+	<!-- init command: Creates necessary directory structure -->
+	<target name="init" description="Creates necessary directory structure">
+		<mkdir dir="${build.dir}" />
+		<copy includeemptydirs="false" todir="${build.dir}">
+			<fileset dir="${src.dir}">
+				<exclude name="**/*.fx" />
+				<exclude name="**/*.java" />
+			</fileset>
+		</copy>
+	</target>
+
+	<!-- clean command: Removes the build and doc directories -->
+	<target name="clean" description="Removes the build directory">
+		<delete dir="${build.dir}" />
+		<delete file="${proj.jar}" />
+	</target>
+
+	<!-- help command: Prints help information-->
+	<target name="help" description="Prints help information">
+		<exec executable="ant">
+			<arg value="-v" />
+			<arg value="-projecthelp" />
+		</exec>
+	</target>
+	
+</project>

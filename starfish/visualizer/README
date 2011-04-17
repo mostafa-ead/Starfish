@@ -1,0 +1,62 @@
+Project: Starfish Visualizer
+Authors: Herodotos Herodotou, Fei Dong, Nick Bodnar
+Date:    April 4, 2010
+
+Description
+-----------
+Provides a Graphical User Interface for performing:
+(a) Job Analysis - analyzing the execution of a MapReduce job on a Hadoop cluster
+(b) What-if Analysis - asking what-if questions about how the configuration
+       settings, cluster resources, and input data properties can impact
+       the performance of a MapReduce job
+(c) Job Optimization - finding the optimal configuration settings with which
+       to execute a MapReduce job on a Hadoop cluster
+
+
+Installation
+------------
+1. Install JavaFX 1.2.1, NOT the latest version
+   (http://javafx.com/downloads/all.jsp)
+2. Create an environment variable called JAVAFX_HOME that contains
+   the installation directory of JavaFX.
+  
+
+Compilation
+-----------
+The build.xml file contains the commands for compiling the project using "ant".
+Useful commands:
+  'ant'       -> Builds the entire project and creates starfish-visualizer.jar
+  'ant run'   -> Executes
+  'ant clean' -> Deletes the build directory and starfish-visualizer.jar
+
+
+Execution
+---------
+You can execute the visualizer in two ways:
+1. Use 'ant run'
+2. Use '$JAVAFX_HOME/bin/javafx -jar starfish-visualizer.jar'
+
+The visualizer expects as input a directory with the following
+directory structure:
+- history: contains the Hadoop-generated conf and history files (required)
+- job_profiles: contains job profiles created by the Profiler or 
+                adjusted profiles (optional)
+- task_profiles: contains the raw task profiles collected by the 
+                 Profiler (optional)
+- transfers: contains transfer information collected by the Profiler (optional)
+
+
+Development with Eclipse
+------------------------
+1. Install the JavaFX plugin from http://javafx.com/downloads/eclipse-plugin/
+2. Copy the .classpath and .project files from the "visualizer/.eclipse.templates" 
+   directory into the "visualizer" directory
+3. In Eclipse, go to "File->New...->JavaFX Project", select "Create project
+   from existing source", select the "visualizer/" directory, and click "Next"
+    (if using Eclipse 3.6 Helios, select "File > Import > Existing projects into workspace")
+4. Use the "Link additional source" option (or right click project name, select "Build Path -> Link Source...") to link the following directories:
+   - Starfish/starfish/src/profile
+   - Starfish/starfish/src/whatif
+   - Starfish/starfish/src/job_opt
+
+

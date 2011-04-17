@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Note: 'size' is expected to be in MB -->
+<input>
+	<split input_index="0" num_splits="1" size="42991616" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="40894464" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="42991616" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="40894464" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="40894464" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="41943040" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="47185920" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="37748736" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="40894464" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="41943040" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="39845888" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="39845888" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="38797312" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="38797312" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="25165824" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="36700160" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="36700160" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="37748736" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="37748736" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="33554432" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="28311552" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="32505856" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="33554432" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="33554432" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="33554432" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="30408704" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="34603008" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="33554432" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="29360128" compress="FALSE"/>
+	<split input_index="0" num_splits="1" size="31457280" compress="FALSE"/>
+</input>
+

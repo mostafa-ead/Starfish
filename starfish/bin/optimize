@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+
+###################################################################
+# The Optimize command script
+#
+# Used to find the best configuration parameters for running
+# a MapReduce job. The user can ask for a recommendation or
+# to actually run the job with the recommended configuration
+# settings.
+#
+# Author: Herodotos Herodotou
+# Date:   March 07, 2011
+###################################################################
+
+
+# if no args specified, show usage
+if [ $# = 0 ]; then
+  echo "Usage: optimize mode profileFile jar jarFile [mainClass] [genericOptions] args..."
+  echo ""
+  echo "  mode        = run|recommend"
+  echo "  profileFile = the job profile XML file"
+  echo ""
+  echo "Description of modes:"
+  echo "  run        Run a job with the optimized job configuration"
+  echo "  recommend  Recommend a job configuration"
+  echo ""
+  echo "Generic options supported are:"
+  echo "  -conf <configuration file>  an application configuration file"
+  echo "  -D <property=value>         use value for given property"
+  echo "  -files <files>              comma separated files to be copied to cluster"
+  echo "  -libjars <jars>             comma separated jar files to include in classpath"
+  echo "  -archives <archives>        comma separated archives to unarchive on cluster"
+  echo ""
+  echo "Profile-related parameters are set in optimize-config.sh"
+  exit 1
+fi
+
+# Get the build and bin directories
+current=`pwd`
+bin=`dirname "$0"`
+bin=`cd "$bin"; pwd`
+build=`cd "$bin/../"; pwd`
+cd $current;
+
+MASTER_BTRACE_DIR=$build/hadoop-btrace
+
+
+# Get and check the execution mode
+MODE=$1
+shift
+if [ "$MODE" != "run" ] && 
+   [ "$MODE" != "recommend" ]; then
+  echo "ERROR: Unsupported mode: $MODE"
+  echo "       modes = run|recommend"
+  exit -1
+fi
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.job.optimizer.mode=${MODE}"
+
+# Get the job profile file
+PROFILE_FILE=$1
+shift
+if test ! -e $PROFILE_FILE; then
+   echo "ERROR: The file '$PROFILE_FILE' does not exist."
+   exit -1
+fi
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.job.optimizer.profile.file=${PROFILE_FILE}"
+
+
+# Get the user-defined parameters
+. "$bin"/optimize-config.sh
+
+# Get the job optimizer to use
+if [ "$JOB_OPTIMIZER_TYPE" = "" ]; then
+  JOB_OPTIMIZER_TYPE=smart_rrs
+fi
+if [ "$JOB_OPTIMIZER_TYPE" != "full" ] && 
+   [ "$JOB_OPTIMIZER_TYPE" != "smart_full" ] && 
+   [ "$JOB_OPTIMIZER_TYPE" != "rrs" ] && 
+   [ "$JOB_OPTIMIZER_TYPE" != "smart_rrs" ]; then
+  echo "ERROR: Unsupported optimizer type: $JOB_OPTIMIZER_TYPE"
+  echo "       Supported types: full, smart_full, rrs, smart_rrs"
+  exit -1
+fi
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.job.optimizer.type=${JOB_OPTIMIZER_TYPE}"
+
+# Get the task scheduler to use
+if [ "$TASK_SCHEDULER" = "" ]; then
+  TASK_SCHEDULER=advanced
+fi
+if [ "$TASK_SCHEDULER" != "basic" ] &&
+   [ "$TASK_SCHEDULER" != "advanced" ]; then
+  echo "ERROR: Unsupported task scheduler type: $TASK_SCHEDULER"
+  echo "       Supported types: basic, advanced"
+  exit -1
+fi
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.whatif.task.scheduler=${TASK_SCHEDULER}"
+
+# Get the excluded parameters
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.job.optimizer.exclude.parameters=${EXCLUDE_PARAMETERS}"
+
+# Get the output location
+if [ "$OUTPUT_LOCATION" = "" ]; then
+  OUTPUT_LOCATION=stdout
+fi
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.job.optimizer.output=${OUTPUT_LOCATION}"
+
+# Get the number of values to consider per parameter
+if [ "$JOB_OPTIMIZER_NUM_VALUES_PER_PARAM" = "" ]; then
+  JOB_OPTIMIZER_NUM_VALUES_PER_PARAM=2
+fi
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.job.optimizer.num.values.per.param=${JOB_OPTIMIZER_NUM_VALUES_PER_PARAM}"
+
+# Get flag for optimizer to use random or equi-distance values per parameter
+if [ "$JOB_OPTIMIZER_USE_RANDOM_VALUES" = "" ]; then
+  JOB_OPTIMIZER_USE_RANDOM_VALUES=false
+fi
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.job.optimizer.use.random.values=${JOB_OPTIMIZER_USE_RANDOM_VALUES}"
+
+
+# Specify the Java agent
+HADOOP_OPTS="${HADOOP_OPTS} -javaagent:${MASTER_BTRACE_DIR}/btrace-agent.jar=dumpClasses=false,debug=false,unsafe=true,probeDescPath=.,noServer=true,stdout,script=${MASTER_BTRACE_DIR}/BTraceJobOptimizer.class"
+
+# Add the optimizer jar to the classpath
+HADOOP_CLASSPATH_OLD=$HADOOP_CLASSPATH
+HADOOP_CLASSPATH=`ls $build/starfish-*-job-optimizer.jar`
+if [ "$HADOOP_CLASSPATH_OLD" != "" ]; then
+  HADOOP_CLASSPATH=${HADOOP_CLASSPATH}:${HADOOP_CLASSPATH_OLD}
+fi
+
+# Add any user-defined jars to the classpath
+OLD_IFS="$IFS"
+IFS=" "
+args=( $@ )
+
+size=${#@};
+for (( i = 0 ; i < size ; i++ ));
+do
+  if [ "${args[${i}]}" = "-libjars" ]; then
+     IFS=","
+     for userjar in ${args[${i}+1]}
+     do
+        HADOOP_CLASSPATH="${HADOOP_CLASSPATH}:$userjar"
+     done
+  fi
+done
+IFS="$OLD_IFS"
+
+# Export the required parameters
+export HADOOP_OPTS
+export HADOOP_CLASSPATH
+
+# Run the command
+${HADOOP_HOME}/bin/hadoop "$@"
+

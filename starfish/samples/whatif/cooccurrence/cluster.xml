@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<cluster>
+<rack name="master-rack">
+<master_host ip="10.194.151.159" name="ip-10-194-151-159.ec2.internal">
+<job_tracker name="job_tracker_ip-10-194-151-159.ec2.internal" port="50002"/>
+</master_host>
+</rack>
+<rack name="default-rack">
+<slave_host ip="127.0.0.1" name="ip-10-244-197-205.ec2.internal">
+<task_tracker map_slots="2" name="tracker_ip-10-244-197-205.ec2.internal" port="51887" reduce_slots="2"/>
+</slave_host>
+<slave_host ip="127.0.0.1" name="ip-10-202-218-124.ec2.internal">
+<task_tracker map_slots="2" name="tracker_ip-10-202-218-124.ec2.internal" port="43767" reduce_slots="2"/>
+</slave_host>
+<slave_host ip="127.0.0.1" name="ip-10-194-150-95.ec2.internal">
+<task_tracker map_slots="2" name="tracker_ip-10-194-150-95.ec2.internal" port="40111" reduce_slots="2"/>
+</slave_host>
+<slave_host ip="127.0.0.1" name="ip-10-204-189-3.ec2.internal">
+<task_tracker map_slots="2" name="tracker_ip-10-204-189-3.ec2.internal" port="39927" reduce_slots="2"/>
+</slave_host>
+<slave_host ip="127.0.0.1" name="ip-10-244-254-57.ec2.internal">
+<task_tracker map_slots="2" name="tracker_ip-10-244-254-57.ec2.internal" port="34600" reduce_slots="2"/>
+</slave_host>
+<slave_host ip="127.0.0.1" name="ip-10-244-203-97.ec2.internal">
+<task_tracker map_slots="2" name="tracker_ip-10-244-203-97.ec2.internal" port="56667" reduce_slots="2"/>
+</slave_host>
+<slave_host ip="127.0.0.1" name="ip-10-212-150-15.ec2.internal">
+<task_tracker map_slots="2" name="tracker_ip-10-212-150-15.ec2.internal" port="41379" reduce_slots="2"/>
+</slave_host>
+<slave_host ip="127.0.0.1" name="ip-10-102-71-243.ec2.internal">
+<task_tracker map_slots="2" name="tracker_ip-10-102-71-243.ec2.internal" port="59236" reduce_slots="2"/>
+</slave_host>
+<slave_host ip="127.0.0.1" name="ip-10-245-157-167.ec2.internal">
+<task_tracker map_slots="2" name="tracker_ip-10-245-157-167.ec2.internal" port="44955" reduce_slots="2"/>
+</slave_host>
+<slave_host ip="127.0.0.1" name="ip-10-245-145-189.ec2.internal">
+<task_tracker map_slots="2" name="tracker_ip-10-245-145-189.ec2.internal" port="51184" reduce_slots="2"/>
+</slave_host>
+<slave_host ip="127.0.0.1" name="ip-10-245-55-176.ec2.internal">
+<task_tracker map_slots="2" name="tracker_ip-10-245-55-176.ec2.internal" port="48111" reduce_slots="2"/>
+</slave_host>
+<slave_host ip="127.0.0.1" name="ip-10-112-189-192.ec2.internal">
+<task_tracker map_slots="2" name="tracker_ip-10-112-189-192.ec2.internal" port="43853" reduce_slots="2"/>
+</slave_host>
+<slave_host ip="127.0.0.1" name="ip-10-204-186-114.ec2.internal">
+<task_tracker map_slots="2" name="tracker_ip-10-204-186-114.ec2.internal" port="36116" reduce_slots="2"/>
+</slave_host>
+<slave_host ip="127.0.0.1" name="ip-10-102-63-34.ec2.internal">
+<task_tracker map_slots="2" name="tracker_ip-10-102-63-34.ec2.internal" port="38863" reduce_slots="2"/>
+</slave_host>
+<slave_host ip="127.0.0.1" name="ip-10-242-29-41.ec2.internal">
+<task_tracker map_slots="2" name="tracker_ip-10-242-29-41.ec2.internal" port="58237" reduce_slots="2"/>
+</slave_host>
+</rack>
+</cluster>
+

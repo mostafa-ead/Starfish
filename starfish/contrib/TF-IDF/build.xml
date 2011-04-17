@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project basedir="." default="jar" name="tfidf">
+
+	<property name="debuglevel" value="source,lines,vars" />
+	<property name="target" value="1.6" />
+	<property name="source" value="1.6" />
+
+    <property name="src.dir" value="src"/>
+    <property name="bin.dir" value="bin"/>
+    <property name="doc.dir" value="doc"/>
+    <property name="lib.dir" value="lib"/>
+    <property name="jar.file" value="tfidf.jar"/>
+    
+    <property name="proj.title" value="TF-IDF in MapReduce"/>
+
+	<!-- Classpath -->
+	<path id="tfidf.classpath">
+		<pathelement location="${bin.dir}" />
+		<pathelement location="${lib.dir}/hadoop-0.20.2-core.jar" />
+	</path>
+
+	<!-- init command -->
+	<target name="init" description="Creates necessary directory structure">
+		<mkdir dir="${bin.dir}" />
+		<copy includeemptydirs="false" todir="${bin.dir}">
+			<fileset dir="${src.dir}">
+				<exclude name="**/*.launch" />
+				<exclude name="**/*.java" />
+			</fileset>
+		</copy>
+	</target>
+
+	<!-- Clean command -->
+	<target name="clean" description="Removes bin and doc directories, and the jar file">
+		<delete dir="${bin.dir}" />
+		<delete dir="${doc.dir}" />
+		<delete file="${jar.file}" />
+	</target>
+
+	<!-- Main build command -->
+	<target name="build" depends="init" description="Builds the entire project">
+		<echo message="${ant.project.name}: ${ant.file}" />
+		<javac debug="true" debuglevel="${debuglevel}" destdir="${bin.dir}" source="${source}" target="${target}">
+			<src path="${src.dir}" />
+			<classpath refid="tfidf.classpath" />
+		</javac>
+	</target>
+
+	<!-- Create jar command -->
+	<target name="jar" depends="build" description="Creates the tfidf.jar file">
+		<jar destfile="${jar.file}">
+			<manifest>
+				<attribute name="Main-Class" value="tfidf/Driver" />
+			</manifest>
+			<fileset dir="${bin.dir}" />
+		</jar>
+	</target>
+
+	<!-- Create javadoc command -->
+    <target name="javadoc" description="Creates the javadoc documentation">
+        <javadoc 
+        	access="public" 
+        	author="true" 
+        	classpath="${lib.dir}/hadoop-0.20.2-core.jar" 
+        	destdir="${doc.dir}" 
+        	doctitle="${proj.title}" 
+        	nodeprecated="false" 
+        	nodeprecatedlist="false" 
+        	noindex="false" 
+        	nonavbar="false" 
+        	notree="false" 
+        	packagenames="tfidf" 
+        	source="${source}" 
+        	sourcepath="${src.dir}" 
+        	splitindex="true" 
+        	use="true" 
+        	version="true"/>
+    </target>
+
+	<!-- help command: Prints help information-->
+	<target name="help" description="Prints help information">
+		<exec executable="ant">
+			<arg value="-v" />
+			<arg value="-projecthelp" />
+		</exec>
+	</target>
+
+</project>

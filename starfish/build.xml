@@ -1,0 +1,375 @@
+<?xml version="1.0"?>
+
+<project basedir="." default="jar" name="Starfish">
+
+	<!-- Load all the default properties, and any the user wants    -->
+	<!-- to contribute (without having to type -D or edit this file -->
+	<!-- <property file="${user.home}/build.properties" /> -->
+
+	<property name="Name" value="Starfish" />
+	<property name="name" value="starfish" />
+	<property name="starfish.version" value="0.1.0" />
+	<property name="final.name" value="${name}-${starfish.version}" />
+	<property name="year" value="2011" />
+
+	<!-- Source directories -->
+	<property name="src.dir" value="${basedir}/src" />
+	<property name="jobopt.src.dir" value="${src.dir}/job_opt" />
+	<property name="profile.src.dir" value="${src.dir}/profile" />
+	<property name="whatif.src.dir" value="${src.dir}/whatif" />
+	
+	<!-- Project directories -->
+	<property name="lib.dir" value="${basedir}/lib" />
+	<property name="samples.dir" value="${basedir}/samples" />
+	<property name="docs.dir" value="${basedir}/docs" />
+	<property name="scripts.dir" value="${basedir}/scripts" />
+
+	<!-- Build properties -->
+	<property name="build.dir" value="${basedir}/build" />
+	<property name="build.encoding" value="ISO-8859-1" />
+
+	<!-- Javadoc properties -->
+	<property name="javadoc.dir" value="${docs.dir}/api" />
+	<property name="javadoc.link.java" value="http://java.sun.com/javase/6/docs/api/" />
+	<property name="javadoc.packages" value="edu.duke.starfish.*" />
+
+	<!-- Javac properties -->
+	<property name="javac.debug" value="on" />
+	<property name="javac.optimize" value="on" />
+	<property name="javac.deprecation" value="off" />
+	<property name="javac.version" value="1.6" />
+	<property name="javac.args" value="" />
+	<property name="javac.args.warnings" value="-Xlint:unchecked" />
+
+
+	<!-- Jar files -->
+	<property name="starfish.profiler.jar" value="${basedir}/${final.name}-profiler.jar" />
+	<property name="starfish.whatif.jar" value="${basedir}/${final.name}-whatif.jar" />
+	<property name="starfish.jobopt.jar" value="${basedir}/${final.name}-job-optimizer.jar" />
+
+	<!-- BTrace specific properties -->
+	<property name="btrace.src.dir" value="${src.dir}/btrace" />
+	<property name="btrace.build.dir" value="${basedir}/hadoop-btrace" />
+	<property name="btrace.home.dir" value="${basedir}/tools/btrace" />
+	<property name="hadoop.jar" value="${lib.dir}/hadoop-0.20.2-core.jar" />
+
+	<!-- Contrib and Visualizer projects -->
+	<property name="contrib.dir" value="${basedir}/contrib" />
+	<property name="contrib.examples.dir" value="${contrib.dir}/examples" />
+	<property name="contrib.tfidf.dir" value="${contrib.dir}/TF-IDF" />
+	<property name="visualizer.dir" value="${basedir}/visualizer" />
+	
+	
+	<!-- the Starfish classpath -->
+	<path id="starfish.classpath">
+		<pathelement location="${build.dir}" />
+		<fileset dir="${lib.dir}">
+			<include name="**/*.jar" />
+			<exclude name="**/excluded/" />
+		</fileset>
+	</path>
+
+
+	<!-- ====================================================== -->
+	<!-- Stuff needed by all targets                            -->
+	<!-- ====================================================== -->
+	<target name="init">
+		<mkdir dir="${build.dir}" />
+		<mkdir dir="${btrace.build.dir}" />
+
+		<copy todir="${btrace.build.dir}" verbose="false">
+			<fileset dir="${lib.dir}" includes="**/btrace*.jar"/>
+		</copy>
+	</target>
+
+	<!-- ====================================================== -->
+	<!-- Compile the Java files                                 -->
+	<!-- ====================================================== -->
+	<target name="compile" 
+		depends="init, compile-profile-classes, compile-whatif-classes,
+				 compile-jobopt-classes, compile-btrace-classes"
+		description="Compile the entire project">
+	</target>
+
+	<target name="compile-profile-classes">
+		<javac encoding="${build.encoding}" 
+			srcdir="${profile.src.dir}"
+			includes="edu/duke/starfish/**/*.java" 
+			destdir="${build.dir}" 
+			debug="${javac.debug}" 
+			optimize="${javac.optimize}" 
+			target="${javac.version}" 
+			source="${javac.version}" 
+			deprecation="${javac.deprecation}">
+
+			<compilerarg line="${javac.args} ${javac.args.warnings}" />
+			<classpath refid="starfish.classpath" />
+		</javac>
+	</target>
+
+	<target name="compile-whatif-classes" 
+			depends="compile-profile-classes">
+		<javac encoding="${build.encoding}" 
+			srcdir="${whatif.src.dir}"
+			includes="edu/duke/starfish/**/*.java" 
+			destdir="${build.dir}" 
+			debug="${javac.debug}" 
+			optimize="${javac.optimize}" 
+			target="${javac.version}" 
+			source="${javac.version}" 
+			deprecation="${javac.deprecation}">
+
+			<compilerarg line="${javac.args} ${javac.args.warnings}" />
+			<classpath refid="starfish.classpath" />
+		</javac>
+	</target>
+
+	<target name="compile-jobopt-classes" 
+			depends="compile-profile-classes,compile-whatif-classes">
+		<javac encoding="${build.encoding}" 
+			srcdir="${jobopt.src.dir}"
+			includes="edu/duke/starfish/**/*.java" 
+			destdir="${build.dir}" 
+			debug="${javac.debug}" 
+			optimize="${javac.optimize}" 
+			target="${javac.version}" 
+			source="${javac.version}" 
+			deprecation="${javac.deprecation}">
+
+			<compilerarg line="${javac.args} ${javac.args.warnings}" />
+			<classpath refid="starfish.classpath" />
+		</javac>
+	</target>
+
+	<target name="compile-btrace-classes" depends="">
+		<exec executable="/bin/sh">
+			<arg value="${btrace.home.dir}/bin/btracec" />
+			<arg value="-unsafe" />
+			<arg value="-cp" />
+			<arg value="${build.dir}:${hadoop.jar}" />
+			<arg value="-d" />
+			<arg value="${btrace.build.dir}" />
+			<arg value="${btrace.src.dir}/*.java" />
+		</exec>
+	</target>
+
+
+	<!-- ================================================================== -->
+	<!-- Jar creation                                                       -->
+	<!-- ================================================================== -->
+	<target name="jar" 
+		depends="compile, profiler_jar, whatif_jar, jobopt_jar" 
+		description="Creates the starfish jars">
+	</target>
+
+	<target name="profiler_jar" depends="compile">
+		<jar jarfile="${starfish.profiler.jar}" >
+			
+			<fileset dir="${build.dir}">
+				<include name="edu/duke/starfish/profile/**/*.class" />
+			</fileset>
+			
+			<manifest>
+		        <attribute name="Main-Class" 
+		                   value="edu/duke/starfish/profile/profiler/ProfilerDriver"/>
+				<section name="edu/duke/starfish/profile">
+					<attribute name="Implementation-Title" value="${Name}-profiler" />
+					<attribute name="Implementation-Version" value="${starfish.version}" />
+				</section>
+			</manifest>
+		</jar>
+	</target>
+
+	<target name="whatif_jar" depends="compile">
+		<jar jarfile="${starfish.whatif.jar}" >
+
+			<fileset dir="${build.dir}">
+				<include name="edu/duke/starfish/profile/**/*.class" />
+				<include name="edu/duke/starfish/whatif/**/*.class" />
+			</fileset>
+
+			<manifest>
+		        <attribute name="Main-Class" 
+		                   value="edu/duke/starfish/whatif/WhatIfEngineDriver"/>
+				<section name="edu/duke/starfish/whatif">
+					<attribute name="Implementation-Title" value="${Name}-whatif" />
+					<attribute name="Implementation-Version" value="${starfish.version}" />
+				</section>
+			</manifest>
+		</jar>
+	</target>
+
+	<target name="jobopt_jar" depends="compile">
+		<jar jarfile="${starfish.jobopt.jar}" >
+
+			<fileset dir="${build.dir}">
+				<include name="edu/duke/starfish/profile/**/*.class" />
+				<include name="edu/duke/starfish/whatif/**/*.class" />
+				<include name="edu/duke/starfish/jobopt/**/*.class" />
+			</fileset>
+
+			<manifest>
+		        <attribute name="Main-Class" 
+		                   value="edu/duke/starfish/jobopt/JobOptimizerDriver"/>
+				<section name="edu/duke/starfish/jobopt">
+					<attribute name="Implementation-Title" value="${Name}-job-optimizer" />
+					<attribute name="Implementation-Version" value="${starfish.version}" />
+				</section>
+			</manifest>
+		</jar>
+	</target>
+
+
+	<!-- ================================================================== -->
+	<!-- Build contrib and visualizer projects                              -->
+	<!-- ================================================================== -->
+
+	<!-- build_contrib_projects: Builds the projects in the contrib folder -->
+	<target name="build_contrib_projects" depends="">
+		<ant dir="${contrib.examples.dir}" inheritAll="false" />
+		<ant dir="${contrib.tfidf.dir}" inheritAll="false" />
+	</target>
+
+	<!-- build_visualizer: Builds the visualizer -->
+	<target name="build_visualizer" depends="">
+		<ant dir="${visualizer.dir}" inheritAll="false" />
+	</target>
+
+
+	<!-- ================================================================== -->
+	<!-- Create the release package                                         -->
+	<!-- ================================================================== -->
+
+	<!-- release command: Packages the project for distribution -->
+	<target name="release" 
+			depends="compile, jar, javadoc, build_contrib_projects, build_visualizer"
+			description="Packages the project for distribution">
+		<delete dir="${final.name}" />
+		<mkdir dir="${final.name}" />
+
+		<copy todir="${final.name}" file="LICENSE.txt" verbose="false" />
+		<copy todir="${final.name}" file="README" verbose="false" />
+		<copy todir="${final.name}" verbose="false">
+			<fileset dir="." includes="*.jar" />
+		</copy>
+
+		<copy todir="${final.name}/bin" verbose="false">
+			<fileset dir="bin" includes="**/*" />
+		</copy>
+		<chmod file="${final.name}/bin/*" perm="a+x"/>
+		
+		<copy todir="${final.name}/contrib/examples" verbose="false">
+			<fileset dir="contrib/examples" includes="*.jar,README" />
+		</copy>
+		<copy todir="${final.name}/contrib/TF-IDF" verbose="false">
+			<fileset dir="contrib/TF-IDF" includes="*.jar,README,run_tfidf.sh" />
+		</copy>
+		<chmod file="${final.name}/contrib/TF-IDF/run_tfidf.sh" perm="a+x"/>
+		<copy todir="${final.name}/docs" verbose="false">
+			<fileset dir="docs" includes="**/*" />
+		</copy>
+		<copy todir="${final.name}/hadoop-btrace" verbose="false">
+			<fileset dir="hadoop-btrace" includes="**/*" />
+		</copy>
+		<copy todir="${final.name}/samples" verbose="false">
+			<fileset dir="samples" includes="**/*" />
+		</copy>
+		<copy todir="${final.name}/tools" verbose="false">
+			<fileset dir="tools" includes="btrace/**,monitor/**" />
+		</copy>
+		<copy todir="${final.name}/visualizer" verbose="false">
+			<fileset dir="visualizer" includes="README,samples.tar.gz,*.jar" />
+		</copy>
+
+	</target>
+
+	<!-- package-zip command: Packages the project as a .zip file -->
+	<target name="release-zip" depends="release" 
+			description="Packages the release as a .zip file">
+		<delete file="${final.name}.zip" quiet="true" />
+		<zip zipfile="${final.name}.zip" basedir="." includes="${final.name}/**" />
+		<delete dir="${final.name}" />
+	</target>
+
+	<!-- package-tar command: Packages the project as a .tar.gz file -->
+	<target name="release-tar" depends="release" 
+			description="Packages the release as a .tar.gz file">
+		<delete file="${final.name}.tar.gz" quiet="true" />
+		<tar tarfile="${final.name}.tar.gz" basedir="." includes="${final.name}/**" 
+			longfile="gnu"  compression="gzip" />
+		<delete dir="${final.name}" />
+	</target>
+
+	<!-- ================================================================== -->
+	<!-- JUnit Testing                                                      -->
+	<!-- ================================================================== -->
+	
+	<target name="test" depends="compile" 
+			description="Performs all junit tests for Starfish">
+  		<junit fork="yes" haltonfailure="yes">
+			<batchtest fork="yes" >
+				<fileset dir="${build.dir}">
+					<include name="edu/duke/starfish/**/junit/Test*.class" />
+				</fileset>
+			</batchtest>
+			<formatter type="plain" usefile="false" />
+			<classpath refid="starfish.classpath" />
+		</junit>
+	</target>
+
+
+	<!-- ================================================================== -->
+	<!-- Documentation                                                      -->
+	<!-- ================================================================== -->
+
+	<target name="javadoc" depends="compile" description="Generate javadoc">
+		<mkdir dir="${javadoc.dir}" />
+		<javadoc
+			overview="${src.dir}/overview.html"
+			packagenames="${javadoc.packages}"
+			destdir="${javadoc.dir}"
+			author="true"
+			version="true"
+			use="true"
+			windowtitle="${Name} ${starfish.version} API"
+			doctitle="${Name} ${starfish.version} API"
+			nodeprecated="false" 
+			nodeprecatedlist="false" 
+			noindex="false" 
+			nonavbar="false" 
+			notree="false" 
+			splitindex="true" 
+			>
+			
+			<packageset dir="${profile.src.dir}" />
+			<packageset dir="${whatif.src.dir}" />
+			<packageset dir="${jobopt.src.dir}" />
+
+			<link href="${javadoc.link.java}" />
+
+			<classpath>
+				<path refid="starfish.classpath" />
+				<pathelement path="${java.class.path}" />
+			</classpath>
+			
+		</javadoc>
+	</target>
+
+	<!-- ================================================================== -->
+	<!-- Clean.  Delete the build files, and their directories              -->
+	<!-- ================================================================== -->
+	
+	<target name="clean" description="Delete the build directory">
+		<delete dir="${build.dir}" />
+		<delete dir="${btrace.build.dir}" />
+	</target>
+
+	<!-- help command: Prints help information-->
+	<target name="help" description="Prints help information">
+		<exec executable="ant">
+			<arg value="-v" />
+			<arg value="-projecthelp" />
+		</exec>
+	</target>
+
+</project>

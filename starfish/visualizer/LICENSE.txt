@@ -1,0 +1,17 @@
+SOFTWARE LICENSE AGREEMENT
+(For Academic Purposes)
+
+WHEREAS, Duke University, an educational and research institution located in Durham, North Carolina ("Licensor") has developed a certain computer program known as "Starfish" ("Program"), and desires to make the Program available to further research and development, and to advance related scientific knowledge; and WHEREAS, the Licensee ("Licensee") desires to obtain a license to use the Program subject to the terms and conditions set forth herein:
+
+1. License. Licensor hereby grants and Licensee accepts a limited, nonexclusive license to use the Program for internal, educational, academic and research purposes only. It is expressly understood that this License does not permit sublicensing or sale or distribution of the Program to third parties or use for commercial purposes. Licensee agrees to acknowledge use of the Program and its source in all publications arising from Licensee's use of the Program.
+
+2. Dissemination. The Licensee agrees not to disseminate the Program, or any of the support files, or documentation to others. This agreement may not be assigned to any third party without the express written consent of the Licensor.
+
+3. Disclaimer of Warranties. The Program is provided to Licensee on an “As Is” basis and Licensee understands that Licensor makes no express or implied warranty of any kind. Licensor specifically disclaims any implied warranty or merchantability or fitness for a particular purpose with regard to the Program. Further, Licensor makes no representations or warranties that the Program will not infringe the intellectual property rights of others.
+
+4. Indemnification. Licensee agrees to indemnify and hold harmless Licensor, its trustees, officers, employees, and agents from and against any and all liability arising out of Licensee’s use of the Program.
+
+5. Term; Termination. This License shall continue indefinitely except that Licensor may terminate this Agreement immediately upon Licensee’s breach of this Agreement.
+
+6. Governing Law. The law of the State of North Carolina shall govern this License.
+

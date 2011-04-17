@@ -1,0 +1,131 @@
+Summary
+-------
+The Job profile consists of:
+(a) a set of aggregated map profiles 
+(b) one aggregated reduce profile
+
+Description
+-----------
+(a) Aggregated Map Profiles
+One aggregated map profile is created for each "job input". The job inputs
+are found in the property "mapred.input.dir" and correspond to how many times
+the InputFormat.addInputPath method was called. Note that a single job input
+can be a single file, a directory, or a file path with glob regex.
+Each aggregated map profile contains average counters, statistics,
+cost factors, and timings for the map tasks that were profiled.
+
+(b) Aggregated Reduce Profile
+The aggregated reduce profile contains average counters, statistics,
+cost factors, and timings for the reduce tasks that were
+profiled. In the case of a map-only job, the reduce profile does not exist.
+
+---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+Counters
+--------
+	MAP_TASKS - Number of map tasks in the job
+	REDUCE_TASKS - Number of reduce tasks in the job
+
+	MAP_INPUT_RECORDS - Map input records
+	MAP_INPUT_BYTES - Map input bytes
+	MAP_OUTPUT_RECORDS - Map output records
+	MAP_OUTPUT_BYTES - Map output bytes
+	MAP_SKIPPED_RECORDS - Map skipped records
+	MAP_NUM_SPILLS - Number of spills
+	MAP_NUM_SPILL_MERGES - Number of merge rounds
+	MAP_RECS_PER_BUFF_SPILL - Number of records in buffer per spill
+	MAP_BUFF_SPILL_SIZE - Buffer size (bytes) per spill
+	MAP_RECORDS_PER_SPILL - Number of records in spill file
+	MAP_SPILL_SIZE - Spill file size (bytes)
+	MAP_MAX_UNIQUE_GROUPS - Maximum number of unique groups
+
+	REDUCE_SHUFFLE_BYTES - Shuffle size (bytes)
+	REDUCE_INPUT_GROUPS - Reduce input groups (unique keys)
+	REDUCE_INPUT_RECORDS - Reduce input records
+	REDUCE_INPUT_BYTES - Reduce input bytes
+	REDUCE_OUTPUT_RECORDS - Reduce output records
+	REDUCE_OUTPUT_BYTES - Reduce output bytes
+	REDUCE_SKIPPED_RECORDS - Reduce skipped records
+	REDUCE_SKIPPED_GROUPS - Reduce skipped groups
+
+	COMBINE_INPUT_RECORDS - Combine input records (during a map or reduce task)
+	COMBINE_OUTPUT_RECORDS - Combine output records (during a map or reduce task)
+
+	SPILLED_RECORDS - Total spilled records (during a map or reduce task)
+
+	FILE_BYTES_READ - Bytes read from local file system
+	FILE_BYTES_WRITTEN - Bytes written to local file system
+	HDFS_BYTES_READ - Bytes read from HDFS
+	HDFS_BYTES_WRITTEN; // Bytes written to HDFS
+
+---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+Statistics
+----------
+	INPUT_PAIR_WIDTH - Average width (in bytes) of input key-value pairs
+	REDUCE_PAIRS_PER_GROUP - Number of records per reducer's group
+
+	MAP_SIZE_SEL - Map selectivity in terms of size
+	MAP_PAIRS_SEL - Map selectivity in terms of records
+	REDUCE_SIZE_SEL - Reducer selectivity in terms of size
+	REDUCE_PAIRS_SEL - Reducer selectivity in terms of records
+	COMBINE_SIZE_SEL - Combiner selectivity in terms of size
+	COMBINE_PAIRS_SEL - Combiner selectivity in terms of records
+
+	INPUT_COMPRESS_RATIO - Input data compression ratio
+	INTERM_COMPRESS_RATIO - Map output data compression ratio
+	OUT_COMPRESS_RATIO - Output data compression ratio
+
+	STARTUP_MEM - Startup memory per task (bytes)
+	SETUP_MEM - Setup memory per task (bytes)
+	MAP_MEM_PER_RECORD - Memory per map's record (bytes per record)
+	REDUCE_MEM_PER_RECORD - Memory per reducer's record (bytes per record)
+	CLEANUP_MEM; // Cleanup memory per task (bytes)
+
+---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+Cost Factors
+------------
+	READ_HDFS_IO_COST - I/O cost for reading from HDFS (ns per byte)
+	WRITE_HDFS_IO_COST - I/O cost for writing to HDFS (ns per byte)
+	READ_LOCAL_IO_COST - I/O cost for reading from local disk (ns per byte)
+	WRITE_LOCAL_IO_COST - I/O cost for writing to local disk (ns per byte)
+
+	NETWORK_COST - Cost for network transfers (ns per byte)
+
+	MAP_CPU_COST - CPU cost for executing the Mapper (ns per record)
+	REDUCE_CPU_COST - CPU cost for executing the Reducer (ns per record)
+	COMBINE_CPU_COST - CPU cost for executing the Combiner (ns per record)
+	
+	PARTITION_CPU_COST - CPU cost for partitioning (ns per record)
+	SERDE_CPU_COST - CPU cost for serializing/deserializing (ns per record)
+	SORT_CPU_COST - CPU cost for sorting (ns per record)
+	MERGE_CPU_COST - CPU cost for merging (ns per record)
+
+	INPUT_UNCOMPRESS_CPU_COST - CPU cost for uncompressing the input (ns per byte)
+	INTERM_UNCOMPRESS_CPU_COST - CPU cost for uncompressing map output (ns per byte)
+	INTERM_COMPRESS_CPU_COST - CPU cost for compressing map output (ns per byte)
+	OUTPUT_COMPRESS_CPU_COST - CPU cost for compressing the output (ns per byte)
+
+	SETUP_CPU_COST - CPU cost for task setup (ns)
+	CLEANUP_CPU_COST; // CPU cost for task cleanup (ns)
+
+---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+Timings (in ms)
+---------------
+	SETUP - Setup phase time in the map task
+	READ - Read phase time in the map task
+	MAP - Map phase time in the map task
+	COLLECT - Collect phase time in the map task (serialize/partition)
+	CLEANUP - Cleanup phase time in the map task
+	SPILL - Spill phase time in the map task (sort/combine/spill)
+	MERGE; // Merge phase time in the map task
+
+	SHUFFLE - Shuffle phase time in the reduce task (transfers/possible spill & merge)
+	SORT - Merge phase time in the reduce task (after shuffle completes)
+	SETUP - Setup phase time in the task
+	REDUCE - Reduce phase time in the reduce task
+	WRITE - write phase time in the reduce task
+	CLEANUP - Cleanup phase time in the task
+

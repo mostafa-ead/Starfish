@@ -1,0 +1,20 @@
+Project: Hadoop Examples
+Author: Herodotos Herodotou
+Date: March 10, 2011
+
+Description
+-----------
+This package contains a subset of the Hadoop 0.20.2 example MapReduce
+programs adapted to use the new MapReduce API.
+
+
+Usage
+-----
+$(HADOOP_HOME)/bin/hadoop jar hadoop-starfish-examples.jar <program> <program_params>
+
+Examples
+--------
+$(HADOOP_HOME)/bin/hadoop jar hadoop-starfish-examples.jar teragen 100000 ~/tera/in 
+$(HADOOP_HOME)/bin/hadoop jar hadoop-starfish-examples.jar terasort ~/tera/in ~/tera/out
+
+

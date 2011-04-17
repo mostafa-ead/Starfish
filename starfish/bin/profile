@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+
+###################################################################
+# The Profile command script
+#
+# Used to set the necessary parameters to profile the execution of
+# a MapReduce job
+#
+# The user should not need to modify this script. All user-defined
+# parameters can be set in 'profile-config.sh'.
+#
+# Author: Herodotos Herodotou
+# Date:   February 10, 2011
+###################################################################
+
+
+# if no args specified, show usage
+if [ $# = 0 ]; then
+  echo "Usage: profile jar jarFile [mainClass] [genericOptions] args..."
+  echo ""
+  echo "Generic options supported are:"
+  echo "  -conf <configuration file>  an application configuration file"
+  echo "  -D <property=value>         use value for given property"
+  echo "  -files <files>              comma separated files to be copied to cluster"
+  echo "  -libjars <jars>             comma separated jar files to include in classpath"
+  echo "  -archives <archives>        comma separated archives to unarchive on cluster"
+  echo ""
+  echo "Profile-related parameters are set in profile-config.sh"
+  exit 1
+fi
+
+# Get the build and bin directories
+current=`pwd`
+bin=`dirname "$0"`
+bin=`cd "$bin"; pwd`
+build=`cd "$bin/../"; pwd`
+cd $current;
+
+MASTER_BTRACE_DIR=$build/hadoop-btrace
+
+# Get the user-defined parameters
+. "$bin"/profile-config.sh
+
+# Ensure the user has set the BTrace directory
+if [ "$SLAVES_BTRACE_DIR" = "" ]; then
+  echo "Error: SLAVES_BTRACE_DIR is not set."
+  echo "       Please set it in $bin/profile-config.sh"
+  exit 1
+fi
+HADOOP_OPTS="${HADOOP_OPTS} -Dbtrace.profile.dir=${SLAVES_BTRACE_DIR}"
+
+# Default output directory is the working directory
+if [ "$PROFILER_OUTPUT_DIR" = "" ]; then
+  PROFILER_OUTPUT_DIR=$current
+fi
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.profiler.output.dir=${PROFILER_OUTPUT_DIR}"
+
+# Flag for retaining the task profiles
+if [ "$RETAIN_TASK_PROFILES" = "" ]; then
+  RETAIN_TASK_PROFILES=true
+fi
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.profiler.retain.task.profiles=${RETAIN_TASK_PROFILES}"
+
+# Flag for collecting the data transfers
+if [ "$COLLECT_DATA_TRANSFERS" = "" ]; then
+  COLLECT_DATA_TRANSFERS=false
+fi
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.profiler.collect.data.transfers=${COLLECT_DATA_TRANSFERS}"
+
+# Flag to enable profiling sampling
+if [ "$SAMPLING_MODE" = "" ]; then
+  SAMPLING_MODE="off"
+fi
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.profiler.sampling.mode=${SAMPLING_MODE}"
+
+# The sampling fraction
+if [ "$SAMPLING_FRACTION" = "" ]; then
+  SAMPLING_FRACTION="0.1"
+fi
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.profiler.sampling.fraction=${SAMPLING_FRACTION}"
+
+
+# Specify the Java agent
+HADOOP_OPTS="${HADOOP_OPTS} -javaagent:${MASTER_BTRACE_DIR}/btrace-agent.jar=dumpClasses=false,debug=false,unsafe=true,probeDescPath=.,noServer=true,stdout,script=${MASTER_BTRACE_DIR}/BTraceProfiler.class"
+
+# Add the profiler jar to the classpath
+HADOOP_CLASSPATH_OLD=$HADOOP_CLASSPATH
+HADOOP_CLASSPATH=`ls $build/starfish-*-profiler.jar`
+if [ "$HADOOP_CLASSPATH_OLD" != "" ]; then
+  HADOOP_CLASSPATH=${HADOOP_CLASSPATH}:${HADOOP_CLASSPATH_OLD}
+fi
+
+# Add any user-defined jars to the classpath
+OLD_IFS="$IFS"
+IFS=" "
+args=( $@ )
+
+size=${#@};
+for (( i = 0 ; i < size ; i++ ));
+do
+  if [ "${args[${i}]}" = "-libjars" ]; then
+     IFS=","
+     for userjar in ${args[${i}+1]}
+     do
+        HADOOP_CLASSPATH="${HADOOP_CLASSPATH}:$userjar"
+     done
+  fi
+done
+IFS="$OLD_IFS"
+
+# Export the required parameters
+export HADOOP_OPTS
+export HADOOP_CLASSPATH
+
+# Run the command
+${HADOOP_HOME}/bin/hadoop "$@"
+

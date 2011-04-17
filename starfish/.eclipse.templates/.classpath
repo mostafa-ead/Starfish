@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src/whatif"/>
+	<classpathentry kind="src" path="src/profile"/>
+	<classpathentry kind="src" path="src/btrace"/>
+	<classpathentry kind="src" path="src/job_opt"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="lib/btrace-boot.jar"/>
+	<classpathentry kind="lib" path="lib/commons-cli-1.2.jar"/>
+	<classpathentry kind="lib" path="lib/commons-logging-1.0.4.jar"/>
+	<classpathentry kind="lib" path="lib/hadoop-0.20.2-core.jar"/>
+	<classpathentry kind="lib" path="lib/junit.jar"/>
+	<classpathentry kind="output" path="eclipsebin"/>
+</classpath>

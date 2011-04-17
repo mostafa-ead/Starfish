@@ -1,0 +1,70 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+
+<!-- Put site-specific property overrides in this file. -->
+
+<configuration>
+
+  <property>
+    <name>btrace.profile.dir</name>
+    <value>/home/hero/Starfish/starfish/src/profile/dist/hadoop-btrace</value>
+  </property>
+
+  <property>
+    <name>mapred.task.profile</name>
+    <value>true</value>
+  </property>
+
+  <property>
+    <name>mapred.task.profile.maps</name>
+    <value>0-9999</value>
+  </property>
+
+  <property>
+    <name>mapred.task.profile.reduces</name>
+    <value>0-9999</value>
+  </property>
+
+  <property>
+    <name>mapred.task.profile.params</name>
+    <value>-javaagent:${btrace.profile.dir}/btrace-agent.jar=dumpClasses=false,debug=false,unsafe=true,probeDescPath=.,noServer=true,script=${btrace.profile.dir}/HadoopBTrace.class,scriptOutputFile=%s</value>
+  </property>
+
+  <property>
+    <name>mapred.job.reuse.jvm.num.tasks</name>
+    <value>1</value>
+  </property>
+  
+  <property>
+    <name>mapred.map.tasks.speculative.execution</name>
+    <value>false</value>
+  </property>
+
+  <property>
+    <name>mapred.reduce.parallel.copies</name>
+    <value>1</value>
+  </property>
+
+  <property>
+    <name>min.num.spills.for.combine</name>
+    <value>9999</value>
+  </property>
+
+  <property>
+    <name>mapred.job.reduce.input.buffer.percent</name>
+    <value>0.0</value>
+  </property>
+
+  <property>
+    <name>mapred.compress.map.output</name>
+    <value>true</value>
+  </property>
+
+  <property>
+    <name>mapred.output.compress</name>
+    <value>true</value>
+  </property>
+
+</configuration>
+
+

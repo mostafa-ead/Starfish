@@ -1,0 +1,38 @@
+Project: TF-IDF
+Author: Herodotos Herodotou (Code adapted from Marcello de Sales)
+Date: Nov 7, 2010
+
+Introduction
+------------
+The TF–IDF weight (Term Frequency–Inverse Document Frequency) is a weight 
+often used in information retrieval and text mining. 
+This weight is a statistical measure used to evaluate how important a word 
+is to a document in a collection or corpus. 
+For details, please visit: http://en.wikipedia.org/wiki/Tf%E2%80%93idf
+
+TF-IDF is implemented as a pipeline of 3 MapReduce jobs:
+  - Part 1: implements the “Job 1: Word Frequency in Doc”;
+  - Part 2: implements the “Job 2: Word Counts For Docs”;
+  - Part 3: implements the “Job 3: Docs In Corpus and computes TF-IDF”.
+
+
+Job Execution
+-------------
+The script run_tfidf.sh can be used to perform TF-IDF as a sequence 
+of 3 MapReduce jobs.
+
+Usage:
+   ./run_tfidf.sh <input_dir> <output_dir> [conf]
+ 
+   where:
+      input_dir  = HDFS Directory with the input files
+      output_dir = HDFS Directory to place the output
+      conf       = Optional hadoop configuration options
+
+This script will create three directories under <output_dir>, namely,
+tfidf1, tfidf2, and tfidf3, to place to output from each MR job.
+
+Examples:
+   ./run_tfidf.sh ~/input ~/output "-conf=myconf.xml"
+   ./run_tfidf.sh ~/input ~/output "-Dmapred.reduce.tasks=2"
+
