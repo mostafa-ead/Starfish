@@ -483,6 +483,7 @@ public class DataFlowView extends AppView {
 		};
 		
 		// The list of checkHosts
+		delete checkHosts;
 		var pos: Integer = 0;
 		for (host in hosts) {
 			var checkBox = VertexCheckBox {
@@ -586,7 +587,7 @@ public class DataFlowView extends AppView {
 	 * Create the data vertices. There exists one vertex for each host
 	 */
 	function createDataVertices(): Void {
-	    
+	    delete vertices;
 	    var id: Integer = 0;
 	    numHosts = hosts.size();
 	    numVisibleVertices = numHosts;
@@ -614,7 +615,8 @@ public class DataFlowView extends AppView {
 	 * exchanged data, or an arc around a host representing local transfers
 	 */
 	function createDataEdges(): Void {
-	    
+	    delete edges;
+	    delete arcs;
 	    for(transfer in model.getHostTransfers()) {
 	        if (transfer.getHost1().equals(transfer.getHost2())) {
 	            // Create an arc edge around a single vertex
@@ -781,6 +783,7 @@ public class DataFlowView extends AppView {
 	    }
 	    
 	    // Get all the host names and sort them
+	    delete hosts;
 	    var cluster = manager.getClusterConfiguration(job.getExecId());
 	    for(tracker in cluster.getAllTaskTrackersInfos()) {
 	        insert tracker.getHostName() into hosts;
