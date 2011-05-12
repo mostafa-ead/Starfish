@@ -40,10 +40,10 @@ fi
 HADOOP_OPTS="${HADOOP_OPTS} -Dbtrace.profile.dir=${SLAVES_BTRACE_DIR}"
 
 # Ensure the user has set the cluster name
-if [ "$PROFILER_CLUSTER_NAME" = "" ]; then
-  echo "Error: PROFILER_CLUSTER_NAME is not set."
+if [ "$CLUSTER_NAME" = "" ]; then
+  echo "Error: CLUSTER_NAME is not set."
   echo "       Please set it in $BIN_DIR/config.sh"
   exit -1
 fi
-HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.profiler.cluster.name=${PROFILER_CLUSTER_NAME}"
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.profiler.cluster.name=${CLUSTER_NAME}"
 

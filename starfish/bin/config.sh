@@ -20,7 +20,7 @@ SLAVES_BTRACE_DIR=
 
 # A descriptive name for the cluster, like test, production, etc.
 # No spaces or special characters in the name. This setting is required!
-PROFILER_CLUSTER_NAME=
+CLUSTER_NAME=
 
 
 ###################################################################
