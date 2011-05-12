@@ -1,14 +1,9 @@
 package edu.duke.starfish.whatif;
 
-import static edu.duke.starfish.whatif.Constants.DEF_TASK_MEM;
-import static edu.duke.starfish.whatif.Constants.MR_JAVA_OPTS;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.apache.hadoop.conf.Configuration;
 
@@ -22,6 +17,7 @@ import edu.duke.starfish.profile.profileinfo.execution.profile.MRReduceProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCounter;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRStatistics;
 import edu.duke.starfish.profile.profileinfo.metrics.DataTransfer;
+import edu.duke.starfish.profile.profileinfo.utils.Constants;
 import edu.duke.starfish.whatif.data.MapInputSpecs;
 
 /**
@@ -30,9 +26,6 @@ import edu.duke.starfish.whatif.data.MapInputSpecs;
  * @author hero
  */
 public class WhatIfUtils {
-
-	private static final Pattern jvmMem = Pattern
-			.compile("-Xmx([0-9]+)([M|m|G|g])");
 
 	/**
 	 * Creates and returns a list of map input specifications based on the
@@ -246,60 +239,6 @@ public class WhatIfUtils {
 				* redProfile.getCounter(MRCounter.REDUCE_INPUT_RECORDS, 0l);
 
 		return Math.round(memory);
-	}
-
-	/**
-	 * Returns the task memory based on the java opts setting
-	 * 
-	 * @param conf
-	 *            the configuration
-	 * @return the task memory in bytes
-	 */
-	public static long getTaskMemory(Configuration conf) {
-
-		String javaOpts = conf.get(MR_JAVA_OPTS);
-		if (javaOpts == null)
-			return DEF_TASK_MEM;
-
-		Matcher m = jvmMem.matcher(javaOpts);
-		if (m.find()) {
-			if (m.group(2).equals("m") || m.group(2).equals("M"))
-				return Long.parseLong(m.group(1)) << 20;
-			else if (m.group(2).equals("g") || m.group(2).equals("G"))
-				return Long.parseLong(m.group(1)) << 30;
-			else
-				return Long.parseLong(m.group(1));
-		} else {
-			return DEF_TASK_MEM;
-		}
-	}
-
-	/**
-	 * Sets the task memory in the java opts setting
-	 * 
-	 * @param conf
-	 *            the configuration
-	 * @param memory
-	 *            the memory in bytes
-	 */
-	public static void setTaskMemory(Configuration conf, long memory) {
-
-		// Build the memory string
-		String taskMem = "-Xmx" + (memory >> 20) + "M";
-
-		// Get the current java opt setting and set the new memory
-		String javaOpts = conf.get(MR_JAVA_OPTS, "");
-		Matcher m = jvmMem.matcher(javaOpts);
-
-		if (m.find()) {
-			javaOpts = m.replaceAll(taskMem);
-		} else {
-			javaOpts = javaOpts + " " + taskMem;
-			javaOpts.trim();
-		}
-
-		// Set the new java opts
-		conf.set(MR_JAVA_OPTS, javaOpts);
 	}
 
 }

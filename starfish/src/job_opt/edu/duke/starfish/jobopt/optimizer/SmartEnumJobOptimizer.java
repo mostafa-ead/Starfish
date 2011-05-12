@@ -80,8 +80,8 @@ public class SmartEnumJobOptimizer extends FullEnumJobOptimizer {
 		int numValuesPerParam = conf.getInt(NUM_VALUES_PER_PARAM, 2);
 		List<ParameterSpacePoint> mapPoints = mapSpace.getSpacePointGrid(
 				useRandom, numValuesPerParam);
-		LOG.info("Number of parameters: " + mapSpace.getNumParameters());
-		LOG.info("Number of settings: " + mapPoints.size());
+		LOG.debug("Number of parameters: " + mapSpace.getNumParameters());
+		LOG.debug("Number of settings: " + mapPoints.size());
 
 		// Find the best point for the map tasks
 		jobOracle.setIgnoreReducers(true);
@@ -99,15 +99,15 @@ public class SmartEnumJobOptimizer extends FullEnumJobOptimizer {
 		if (redSpace.containsParamDescriptor(HadoopParameter.RED_TASKS)) {
 			IntegerParamDescriptor descr = (IntegerParamDescriptor) redSpace
 					.getParameterDescriptor(HadoopParameter.RED_TASKS);
-			LOG.info("Reduce Task Domain: [" + descr.getMinValue() + ", "
+			LOG.debug("Reduce Task Domain: [" + descr.getMinValue() + ", "
 					+ descr.getMaxValue() + "]");
 		}
 
 		// Generate the new grid of points
 		List<ParameterSpacePoint> redPoints = redSpace.getSpacePointGrid(
 				useRandom, numValuesPerParam);
-		LOG.info("Number of parameters: " + redSpace.getNumParameters());
-		LOG.info("Number of settings: " + redPoints.size());
+		LOG.debug("Number of parameters: " + redSpace.getNumParameters());
+		LOG.debug("Number of settings: " + redPoints.size());
 
 		// Find the best point for the entire job
 		jobOracle.setIgnoreReducers(false);

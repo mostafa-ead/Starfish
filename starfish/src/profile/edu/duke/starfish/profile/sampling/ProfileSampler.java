@@ -1,5 +1,7 @@
 package edu.duke.starfish.profile.sampling;
 
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.*;
+
 import java.io.IOException;
 import java.text.NumberFormat;
 import java.util.Arrays;
@@ -81,7 +83,7 @@ public class ProfileSampler {
 		}
 
 		// Specify which reducers to profile
-		int numReducers = conf.getInt("mapred.reduce.tasks", 1);
+		int numReducers = conf.getInt(MR_RED_TASKS, 1);
 		if (numReducers != 0) {
 			conf.set("mapred.task.profile.reduces", sampleTasksToProfile(
 					numReducers, fraction));
@@ -221,7 +223,7 @@ public class ProfileSampler {
 		// Calculate the number of samples
 		int sampleSize = (int) Math.round(domainSize * fraction);
 		if (sampleSize == 0)
-			return new int[0];
+			sampleSize = 1;
 
 		// Create an array with all possible integers in the domain
 		int[] domain = new int[domainSize];

@@ -12,12 +12,12 @@ What-if questions on a live cluster (with actual input data)
 Use the bin/whatif script to ask a what-if question:
 
 Usage:
-  ./bin/whatif mode profileFile jar jarFile [mainClass] [genericOptions] args...
+  ./bin/whatif question profileFile jar jarFile [mainClass] [genericOptions] args...
 
     mode        = job_time|details|profile|timeline|mappers|reducers
     profileFile = the job profile XML file
 
-  Description of modes:
+  Descriptions of 'question':
     job_time     Display the execution time of the predicted job
     details      Display the statistics of the predicted job
     profile      Display the predicted profile of the job

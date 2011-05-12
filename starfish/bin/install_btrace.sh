@@ -3,7 +3,7 @@
 ###############################################################################
 # This script can be used to install btrace to all the slaves.
 #
-# The user must specify the SLAVES_BTRACE_DIR parameter in profile-config.sh
+# The user must specify the SLAVES_BTRACE_DIR parameter in config.sh
 #
 # Usage:
 #  ./install_btrace.sh <slaves_file>
@@ -21,32 +21,23 @@
 
 # Make sure we have all the arguments
 if [ $# -ne 1 ]; then
-   printf "Usage: $0 <slaves_file>\n"
-   printf "  slaves_file = File containing a list of slave machines\n"
-   printf "\n"
-   printf "Note: In profile-config.sh set SLAVES_BTRACE_DIR,\n"
-   printf "      the directory to install btrace to in the slave machines\n"
+   echo "Usage: $0 <slaves_file>"
+   echo "  slaves_file = File containing a list of slave machines"
+   echo ""
    exit -1
 fi
 
 # Get the slaves file
 declare SLAVES_FILE=$1;
 if test ! -e $SLAVES_FILE; then
-   printf "ERROR: The file '$SLAVES_FILE' does not exist. Exiting\n"
+   echo "ERROR: The file '$SLAVES_FILE' does not exist. Exiting"
    exit -1
 fi
 
-# Get the build and bin directories
-bin=`dirname "$0"`
-bin=`cd "$bin"; pwd`
-build=`cd "$bin/../"; pwd`
 
-# Ensure the user has set the BTrace directory
-. "$bin"/profile-config.sh
-if [ "$SLAVES_BTRACE_DIR" = "" ]; then
-  echo "Error: SLAVES_BTRACE_DIR is not set."
-  exit 1
-fi
+# Perform common tasks like Load configurations and initializations
+bin=`dirname "$0"`
+. "$bin"/common.sh
 
 
 # Execute the hadoop-env.sh script for environmental variable definitions
@@ -62,18 +53,15 @@ printf "Input Parameters:\n"
 printf "  File with slaves: $SLAVES_FILE\n"
 printf "  Installation directory: $SLAVES_BTRACE_DIR\n\n"
 
-# Get the source directory
-hadoop_btrace=$build/hadoop-btrace
-
 # Connect to each host and copy the files
 for slave in `cat "$SLAVES_FILE"`; do
 {
    printf "Installing on host: $slave\n"
    ssh $HADOOP_SSH_OPTS $slave "mkdir -p $SLAVES_BTRACE_DIR"
-   scp ${hadoop_btrace}/btrace-agent.jar $slave:$SLAVES_BTRACE_DIR/.
-   scp ${hadoop_btrace}/btrace-boot.jar $slave:$SLAVES_BTRACE_DIR/.
-   scp ${hadoop_btrace}/HadoopBTrace.class $slave:$SLAVES_BTRACE_DIR/.
-   scp ${hadoop_btrace}/HadoopBTraceMem.class $slave:$SLAVES_BTRACE_DIR/.
+   scp ${MASTER_BTRACE_DIR}/btrace-agent.jar $slave:$SLAVES_BTRACE_DIR/.
+   scp ${MASTER_BTRACE_DIR}/btrace-boot.jar $slave:$SLAVES_BTRACE_DIR/.
+   scp ${MASTER_BTRACE_DIR}/HadoopBTrace.class $slave:$SLAVES_BTRACE_DIR/.
+   scp ${MASTER_BTRACE_DIR}/HadoopBTraceMem.class $slave:$SLAVES_BTRACE_DIR/.
 }
 done
 

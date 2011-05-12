@@ -85,7 +85,7 @@ public class SmartRRSJobOptimizer extends RRSJobOptimizer {
 		if (space.containsParamDescriptor(HadoopParameter.RED_TASKS)) {
 			IntegerParamDescriptor descr = (IntegerParamDescriptor) space
 					.getParameterDescriptor(HadoopParameter.RED_TASKS);
-			LOG.info("Reduce Task Domain: [" + descr.getMinValue() + ", "
+			LOG.debug("Reduce Task Domain: [" + descr.getMinValue() + ", "
 					+ descr.getMaxValue() + "]");
 		}
 

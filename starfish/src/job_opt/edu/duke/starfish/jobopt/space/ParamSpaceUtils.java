@@ -1,6 +1,7 @@
 package edu.duke.starfish.jobopt.space;
 
-import static edu.duke.starfish.whatif.Constants.MR_RED_TASKS;
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_RED_TASKS;
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_COMBINE_CLASS;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -20,7 +21,7 @@ import edu.duke.starfish.profile.profileinfo.execution.profile.MRReduceProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCounter;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRStatistics;
 import edu.duke.starfish.profile.profileinfo.setup.TaskTrackerInfo;
-import edu.duke.starfish.whatif.Constants;
+import edu.duke.starfish.profile.profileinfo.utils.ProfileUtils;
 import edu.duke.starfish.whatif.WhatIfUtils;
 
 /**
@@ -69,7 +70,7 @@ public class ParamSpaceUtils {
 			ClusterConfiguration cluster, Configuration conf,
 			MRJobProfile jobProfile) {
 
-		long taskMemory = WhatIfUtils.getTaskMemory(conf);
+		long taskMemory = ProfileUtils.getTaskMemory(conf);
 
 		// Adjust the max value of io.sort.mb
 		if (space.containsParamDescriptor(HadoopParameter.SORT_MB)) {
@@ -323,7 +324,7 @@ public class ParamSpaceUtils {
 			Configuration conf, Set<String> exclude) {
 
 		// Get the maximum memory
-		long maxMem = (long) (MAX_MEM_RATIO * WhatIfUtils.getTaskMemory(conf));
+		long maxMem = (long) (MAX_MEM_RATIO * ProfileUtils.getTaskMemory(conf));
 		if (maxMem < MIN_SORT_MB)
 			maxMem = MIN_SORT_MB;
 
@@ -341,7 +342,7 @@ public class ParamSpaceUtils {
 					HadoopParameter.SORT_REC_PERC, ParamTaskEffect.EFFECT_MAP,
 					0.01, 0.5));
 
-		if (conf.get(Constants.MR_COMBINE_CLASS) != null
+		if (conf.get(MR_COMBINE_CLASS) != null
 				&& !exclude.contains(HadoopParameter.NUM_SPILLS_COMBINE
 						.toString())) {
 			space.addParameterDescriptor(new ListParamDescriptor(
@@ -416,7 +417,7 @@ public class ParamSpaceUtils {
 					HadoopParameter.COMPRESS_MAP_OUT,
 					ParamTaskEffect.EFFECT_BOTH));
 
-		if (conf.get(Constants.MR_COMBINE_CLASS) != null
+		if (conf.get(MR_COMBINE_CLASS) != null
 				&& !exclude.contains(HadoopParameter.COMBINE.toString())) {
 			space.addParameterDescriptor(new BooleanParamDescriptor(
 					HadoopParameter.COMBINE, ParamTaskEffect.EFFECT_BOTH));

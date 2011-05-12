@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Note: The attributes 'ip' and 'port' are optional -->
+<!-- Note: The attribute 'max_slot_memory' is expected in MB -->
+<cluster>
+	<rack name="master-rack">
+		<master_host name="master-host" ip="">
+			<job_tracker name="job_tracker" port="0"/>
+		</master_host>
+	</rack>
+	<rack name="default-rack">
+		<slave_host name="host-1" ip="">
+			<task_tracker map_slots="2" name="tracker-1" port="0" reduce_slots="2" max_slot_memory="200"/>
+		</slave_host>
+		<slave_host name="host-2" ip="">
+			<task_tracker map_slots="2" name="tracker-2" port="0" reduce_slots="2" max_slot_memory="200"/>
+		</slave_host>
+		<slave_host name="host-3" ip="">
+			<task_tracker map_slots="2" name="tracker-3" port="0" reduce_slots="2" max_slot_memory="200"/>
+		</slave_host>
+		<slave_host name="host-4" ip="">
+			<task_tracker map_slots="2" name="tracker-4" port="0" reduce_slots="2" max_slot_memory="200"/>
+		</slave_host>
+		<slave_host name="host-5" ip="">
+			<task_tracker map_slots="2" name="tracker-5" port="0" reduce_slots="2" max_slot_memory="200"/>
+		</slave_host>
+		<slave_host name="host-6" ip="">
+			<task_tracker map_slots="2" name="tracker-6" port="0" reduce_slots="2" max_slot_memory="200"/>
+		</slave_host>
+		<slave_host name="host-7" ip="">
+			<task_tracker map_slots="2" name="tracker-7" port="0" reduce_slots="2" max_slot_memory="200"/>
+		</slave_host>
+	</rack>
+</cluster>
+
+

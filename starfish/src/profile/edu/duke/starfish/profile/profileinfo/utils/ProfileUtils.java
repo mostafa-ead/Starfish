@@ -1,8 +1,15 @@
 package edu.duke.starfish.profile.profileinfo.utils;
 
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.DEF_TASK_MEM;
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_JAVA_OPTS;
+
 import java.io.PrintStream;
 import java.text.NumberFormat;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import org.apache.hadoop.conf.Configuration;
 
 import edu.duke.starfish.profile.profileinfo.execution.MRExecutionStatus;
 import edu.duke.starfish.profile.profileinfo.execution.jobs.MRJobInfo;
@@ -36,6 +43,9 @@ public class ProfileUtils {
 	private static int SEC_IN_HR = 3600;
 
 	private static final String TAB = "\t";
+
+	private static final Pattern jvmMem = Pattern
+			.compile("-Xmx([0-9]+)([M|m|G|g])");
 
 	/* ***************************************************************
 	 * PUBLIC STATIC METHODS
@@ -290,6 +300,77 @@ public class ProfileUtils {
 		}
 
 		return result;
+	}
+
+	/**
+	 * Checks if the task memory has been set in the java opts setting
+	 * 
+	 * @param conf
+	 *            the configuration
+	 * @return true if task memory is set
+	 */
+	public static boolean isTaskMemorySet(Configuration conf) {
+
+		String javaOpts = conf.get(MR_JAVA_OPTS);
+		if (javaOpts == null)
+			return false;
+
+		Matcher m = jvmMem.matcher(javaOpts);
+		return m.find();
+	}
+
+	/**
+	 * Returns the task memory based on the java opts setting in bytes
+	 * 
+	 * @param conf
+	 *            the configuration
+	 * @return the task memory in bytes
+	 */
+	public static long getTaskMemory(Configuration conf) {
+
+		String javaOpts = conf.get(MR_JAVA_OPTS);
+		if (javaOpts == null)
+			return DEF_TASK_MEM;
+
+		Matcher m = jvmMem.matcher(javaOpts);
+		if (m.find()) {
+			if (m.group(2).equals("m") || m.group(2).equals("M"))
+				return Long.parseLong(m.group(1)) << 20;
+			else if (m.group(2).equals("g") || m.group(2).equals("G"))
+				return Long.parseLong(m.group(1)) << 30;
+			else
+				return Long.parseLong(m.group(1));
+		} else {
+			return DEF_TASK_MEM;
+		}
+	}
+
+	/**
+	 * Sets the task memory in the java opts setting
+	 * 
+	 * @param conf
+	 *            the configuration
+	 * @param memory
+	 *            the memory in bytes
+	 */
+	public static void setTaskMemory(Configuration conf, long memory) {
+
+		// Build the memory string
+		String taskMem = "-Xmx" + (memory >> 20) + "M";
+
+		// Get the current java opt setting and set the new memory
+		String javaOpts = conf.get(MR_JAVA_OPTS, "");
+		Matcher m = jvmMem.matcher(javaOpts);
+
+		if (m.find()) {
+			javaOpts = m.replaceAll(taskMem);
+		} else {
+			javaOpts = javaOpts + " " + taskMem;
+			javaOpts.trim();
+		}
+
+		// Set the new java opts
+		conf.set(MR_JAVA_OPTS, javaOpts);
 	}
 
 	/**
@@ -647,6 +728,11 @@ public class ProfileUtils {
 			}
 		}
 
+		// Adjust for input compression statistics
+		if (profWithCompr.containsStatistic(MRStatistics.INPUT_COMPRESS_RATIO)) {
+			adjustTaskInputCompression(profNoCompr, profWithCompr, profResult);
+		}
+
 		// Adjust for intermediate compression statistics
 		if (profWithCompr.containsStatistic(MRStatistics.INTERM_COMPRESS_RATIO)) {
 
@@ -734,6 +820,50 @@ public class ProfileUtils {
 	}
 
 	/**
+	 * Adjust the input compression costs.
+	 * 
+	 * @param profNoCompr
+	 *            profile without compression
+	 * @param profWithCompr
+	 *            profile with compression
+	 * @param profResult
+	 *            the result profile
+	 */
+	private static void adjustTaskInputCompression(MRTaskProfile profNoCompr,
+			MRTaskProfile profWithCompr, MRTaskProfile profResult) {
+
+		if (profNoCompr.containsStatistic(MRStatistics.INPUT_COMPRESS_RATIO)) {
+			// Input compressed in both jobs
+			double halfReadCost = (profNoCompr
+					.getCostFactor(MRCostFactors.READ_HDFS_IO_COST) + profWithCompr
+					.getCostFactor(MRCostFactors.READ_HDFS_IO_COST)) / 4.0d;
+			profResult.addCostFactor(MRCostFactors.READ_HDFS_IO_COST,
+					halfReadCost);
+			profResult.addCostFactor(MRCostFactors.INPUT_UNCOMPRESS_CPU_COST,
+					halfReadCost);
+		} else {
+			// Input compressed only in the job with compression
+			profResult.addStatistic(MRStatistics.INPUT_COMPRESS_RATIO,
+					profWithCompr
+							.getStatistic(MRStatistics.INPUT_COMPRESS_RATIO));
+
+			// Calculate input uncompression cost
+			double uncomprCost = profWithCompr
+					.getCostFactor(MRCostFactors.READ_HDFS_IO_COST)
+					- profNoCompr
+							.getCostFactor(MRCostFactors.READ_HDFS_IO_COST);
+			if (uncomprCost < 0)
+				uncomprCost = 0d;
+			profResult.addCostFactor(MRCostFactors.INPUT_UNCOMPRESS_CPU_COST,
+					uncomprCost);
+
+			// Reset the read HDFS cost
+			profResult.addCostFactor(MRCostFactors.READ_HDFS_IO_COST,
+					profNoCompr.getCostFactor(MRCostFactors.READ_HDFS_IO_COST));
+		}
+	}
+
+	/**
 	 * Adjust the intermediate compression costs
 	 * 
 	 * @param profNoCompr
@@ -757,31 +887,41 @@ public class ProfileUtils {
 		if (avgRecSize == 0d || numRecs == 0l)
 			return;
 
-		// Calculate intermediate compression cost
-		double comprCost = ((profWithCompr
-				.getCostFactor(MRCostFactors.WRITE_LOCAL_IO_COST) - profNoCompr
-				.getCostFactor(MRCostFactors.WRITE_LOCAL_IO_COST)) * profWithCompr
-				.getCounter(MRCounter.FILE_BYTES_WRITTEN))
-				/ (numRecs * avgRecSize);
-		if (comprCost < 0)
-			comprCost = 0d;
-		profResult.addCostFactor(MRCostFactors.INTERM_COMPRESS_CPU_COST,
-				comprCost);
-
 		// Calculate intermediate uncompression cost
-		double uncomprCost = profWithCompr
-				.getCostFactor(MRCostFactors.READ_LOCAL_IO_COST)
-				- profNoCompr.getCostFactor(MRCostFactors.READ_LOCAL_IO_COST);
-		if (uncomprCost < 0)
-			uncomprCost = 0d;
-		profResult.addCostFactor(MRCostFactors.INTERM_UNCOMPRESS_CPU_COST,
-				uncomprCost);
+		if (profNoCompr.containsCostFactor(MRCostFactors.READ_LOCAL_IO_COST)
+				&& profWithCompr
+						.containsCostFactor(MRCostFactors.READ_LOCAL_IO_COST)) {
 
-		// Reset the read and write cost
-		profResult.addCostFactor(MRCostFactors.READ_LOCAL_IO_COST, profNoCompr
-				.getCostFactor(MRCostFactors.READ_LOCAL_IO_COST));
-		profResult.addCostFactor(MRCostFactors.WRITE_LOCAL_IO_COST, profNoCompr
-				.getCostFactor(MRCostFactors.WRITE_LOCAL_IO_COST));
+			double readCost = profNoCompr
+					.getCostFactor(MRCostFactors.READ_LOCAL_IO_COST);
+			double uncomprCost = profWithCompr
+					.getCostFactor(MRCostFactors.READ_LOCAL_IO_COST)
+					- readCost;
+
+			profResult
+					.addCostFactor(MRCostFactors.READ_LOCAL_IO_COST, readCost);
+			profResult.addCostFactor(MRCostFactors.INTERM_UNCOMPRESS_CPU_COST,
+					uncomprCost < 0 ? 0 : uncomprCost);
+		}
+
+		// Calculate intermediate compression cost
+		if (profNoCompr.containsCostFactor(MRCostFactors.WRITE_LOCAL_IO_COST)
+				&& profWithCompr
+						.containsCostFactor(MRCostFactors.WRITE_LOCAL_IO_COST)
+				&& profWithCompr.containsCounter(MRCounter.FILE_BYTES_WRITTEN)) {
+
+			double writeCost = profNoCompr
+					.getCostFactor(MRCostFactors.WRITE_LOCAL_IO_COST);
+			double comprCost = ((profWithCompr
+					.getCostFactor(MRCostFactors.WRITE_LOCAL_IO_COST) - writeCost) * profWithCompr
+					.getCounter(MRCounter.FILE_BYTES_WRITTEN))
+					/ (numRecs * avgRecSize);
+
+			profResult.addCostFactor(MRCostFactors.WRITE_LOCAL_IO_COST,
+					writeCost);
+			profResult.addCostFactor(MRCostFactors.INTERM_COMPRESS_CPU_COST,
+					comprCost < 0 ? 0 : comprCost);
+		}
 	}
 
 	/**

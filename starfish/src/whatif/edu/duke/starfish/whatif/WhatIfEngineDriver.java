@@ -16,18 +16,15 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 
 import edu.duke.starfish.profile.profileinfo.ClusterConfiguration;
-import edu.duke.starfish.profile.profileinfo.execution.jobs.MRJobInfo;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
-import edu.duke.starfish.profile.profileinfo.utils.ProfileUtils;
 import edu.duke.starfish.profile.profileinfo.utils.XMLClusterParser;
 import edu.duke.starfish.profile.profiler.XMLProfileParser;
+import edu.duke.starfish.whatif.WhatIfEngine.WhatIfQuestion;
 import edu.duke.starfish.whatif.data.DataSetModel;
+import edu.duke.starfish.whatif.data.FixedInputSpecsDataSetModel;
 import edu.duke.starfish.whatif.data.MapInputSpecs;
 import edu.duke.starfish.whatif.data.RealAvgDataSetModel;
-import edu.duke.starfish.whatif.data.VirtualAvgDataSetModel;
 import edu.duke.starfish.whatif.data.XMLInputSpecsParser;
-import edu.duke.starfish.whatif.oracle.JobProfileOracle;
-import edu.duke.starfish.whatif.scheduler.BasicFIFOScheduler;
 
 /**
  * The What-if Engine Driver provides a basic terminal UI for answering what-if
@@ -93,12 +90,6 @@ public class WhatIfEngineDriver {
 	private static String HELP = "help";
 
 	// Mode options
-	private static String JOB_TIME = "job_time";
-	private static String JOB_DETAILS = "details";
-	private static String JOB_PROFILE = "profile";
-	private static String TIMELINE = "timeline";
-	private static String MAPPERS = "mappers";
-	private static String REDUCERS = "reducers";
 	private static String CLUSTER_INFO = "cluster_info";
 	private static String CLUSTER_XML = "cluster_xml";
 	private static String INPUT_SPECS = "input_specs";
@@ -182,7 +173,7 @@ public class WhatIfEngineDriver {
 		if (line.hasOption(INPUT)) {
 			List<MapInputSpecs> specs = XMLInputSpecsParser
 					.importMapInputSpecs(new File(line.getOptionValue(INPUT)));
-			dataModel = new VirtualAvgDataSetModel(specs);
+			dataModel = new FixedInputSpecsDataSetModel(specs);
 		} else {
 			dataModel = new RealAvgDataSetModel();
 		}
@@ -200,40 +191,9 @@ public class WhatIfEngineDriver {
 		MRJobProfile sourceProf = XMLProfileParser.importJobProfile(new File(
 				line.getOptionValue(PROFILE)));
 
-		// Build the required what-if components
-		JobProfileOracle jobOracle = new JobProfileOracle(sourceProf);
-		BasicFIFOScheduler scheduler = new BasicFIFOScheduler();
-
-		if (mode.equals(JOB_PROFILE)) {
-			// Print out the job profile
-			MRJobProfile jobProfile = jobOracle.whatif(conf, dataModel);
-			jobProfile.printProfile(out, false);
-			out.close();
-			return;
-		}
-
-		// Ask the what-if question
-		WhatIfEngine whatifEngine = new WhatIfEngine(jobOracle, dataModel,
-				scheduler, cluster, conf);
-		MRJobInfo mrJob = whatifEngine.whatIfJobConfGetJobInfo(conf);
-
-		// Print out the output
-		if (mode.equals(JOB_TIME)) {
-			out.println("Execution Time (ms):\t" + mrJob.getDuration());
-
-		} else if (mode.equals(JOB_DETAILS)) {
-			ProfileUtils.printMRJobDetails(out, mrJob);
-
-		} else if (mode.equals(TIMELINE)) {
-			ProfileUtils.printMRJobTimeline(out, mrJob);
-
-		} else if (mode.equals(MAPPERS)) {
-			ProfileUtils.printMRMapInfo(out, mrJob.getMapTasks());
-
-		} else if (mode.equals(REDUCERS)) {
-			ProfileUtils.printMRReduceInfo(out, mrJob.getReduceTasks());
-
-		}
+		// Answer the what-if question
+		WhatIfEngine.answerWhatIfQuestion(WhatIfQuestion.getQuestion(mode),
+				sourceProf, dataModel, cluster, conf, out);
 
 		out.close();
 	}
@@ -354,9 +314,7 @@ public class WhatIfEngineDriver {
 		// -mode {full|smart_full|rrs|smart_rrs}
 		// -profile <file> -input <file> -cluster <file>
 		// [-conf <file> -ouput <file>]
-		if (mode.equals(JOB_TIME) || mode.equals(JOB_DETAILS)
-				|| mode.equals(JOB_PROFILE) || mode.equals(TIMELINE)
-				|| mode.equals(MAPPERS) || mode.equals(REDUCERS)) {
+		if (WhatIfQuestion.isValid(mode)) {
 
 			// The profile option is required
 			if (!line.hasOption(PROFILE)) {

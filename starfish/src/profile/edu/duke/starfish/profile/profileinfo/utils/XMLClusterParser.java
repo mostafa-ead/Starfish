@@ -43,19 +43,27 @@ public class XMLClusterParser {
 	 * ***************************************************************
 	 */
 
-	// Constants
+	// Constants - XML tags
 	private static final String CLUSTER = "cluster";
 	private static final String RACK = "rack";
 	private static final String MASTER_HOST = "master_host";
 	private static final String SLAVE_HOST = "slave_host";
 	private static final String JOB_TRACKER = "job_tracker";
 	private static final String TASK_TRACKER = "task_tracker";
+	private static final String SPECS = "specs";
 
+	// Constants - XML attributes
 	private static final String NAME = "name";
 	private static final String IP_ADDRESS = "ip";
 	private static final String PORT = "port";
 	private static final String MAP_SLOTS = "map_slots";
 	private static final String RED_SLOTS = "reduce_slots";
+	private static final String MAX_SLOT_MEMORY = "max_slot_memory";
+
+	private static final String NUM_RACKS = "num_racks";
+	private static final String HOSTS_PER_RACK = "hosts_per_rack";
+	private static final String MAP_SLOTS_PER_HOST = "map_slots_per_host";
+	private static final String RED_SLOTS_PER_HOST = "reduce_slots_per_host";
 
 	/* ***************************************************************
 	 * PUBLID METHODS
@@ -110,13 +118,25 @@ public class XMLClusterParser {
 			throw new RuntimeException(
 					"ERROR: Bad XML File: top-level element not <cluster>");
 
-		// Get the racks
-		ClusterConfiguration cluster = new ClusterConfiguration();
-		NodeList racks = root.getElementsByTagName(RACK);
-		for (int i = 0; i < racks.getLength(); ++i) {
-			if (racks.item(i) instanceof Element) {
-				Element rack = (Element) racks.item(i);
-				loadRack(cluster, rack);
+		// Load the cluster configuration
+		ClusterConfiguration cluster = null;
+		String name = root.getAttribute(NAME);
+
+		NodeList specs = root.getElementsByTagName(SPECS);
+		if (specs.getLength() != 0) {
+			// Create the cluster based on the specs
+			cluster = loadClusterFromSpecs(name, (Element) specs.item(0));
+
+		} else {
+			// Load the racks
+			cluster = new ClusterConfiguration();
+			cluster.setClusterName(name);
+			NodeList racks = root.getElementsByTagName(RACK);
+			for (int i = 0; i < racks.getLength(); ++i) {
+				if (racks.item(i) instanceof Element) {
+					Element rack = (Element) racks.item(i);
+					loadRack(cluster, rack);
+				}
 			}
 		}
 
@@ -167,6 +187,11 @@ public class XMLClusterParser {
 		// Create the cluster element
 		Element clusterElem = doc.createElement(CLUSTER);
 		doc.appendChild(clusterElem);
+
+		// Add the cluster name, if any
+		if (cluster.getClusterName() != null) {
+			clusterElem.setAttribute(NAME, cluster.getClusterName());
+		}
 
 		// Add the rack elements
 		for (RackInfo rack : cluster.getAllRackInfos()) {
@@ -276,6 +301,7 @@ public class XMLClusterParser {
 		TaskTrackerInfo taskTracker = host.getTaskTracker();
 		if (taskTracker != null) {
 			Element taskTrackerElem = doc.createElement(TASK_TRACKER);
+
 			taskTrackerElem.setAttribute(NAME, taskTracker.getName());
 			taskTrackerElem.setAttribute(PORT, Integer.toString(taskTracker
 					.getPort()));
@@ -283,10 +309,49 @@ public class XMLClusterParser {
 					.toString(taskTracker.getNumMapSlots()));
 			taskTrackerElem.setAttribute(RED_SLOTS, Integer
 					.toString(taskTracker.getNumReduceSlots()));
+			taskTrackerElem.setAttribute(MAX_SLOT_MEMORY, Long
+					.toString(taskTracker.getMaxTaskMemory() >> 20));
+
 			hostElem.appendChild(taskTrackerElem);
 		}
 
 		return hostElem;
+	}
+
+	/**
+	 * Load the cluster specifications from the XML element and create a new
+	 * ClusterConfiguration.
+	 * 
+	 * @param clusterName
+	 *            the cluster name
+	 * @param specsElem
+	 *            the specs XML element
+	 * @return the cluster configuration
+	 */
+	private static ClusterConfiguration loadClusterFromSpecs(
+			String clusterName, Element specsElem) {
+
+		// Number of racks is optional
+		int numRacks = 1;
+		String numRacksStr = specsElem.getAttribute(NUM_RACKS);
+		if (numRacksStr != null && !numRacksStr.equals("")) {
+			numRacks = Integer.parseInt(numRacksStr);
+		}
+
+		// Get and parse the other specs
+		int numHostsPerRack = Integer.parseInt(specsElem
+				.getAttribute(HOSTS_PER_RACK));
+		int numMapSlots = Integer.parseInt(specsElem
+				.getAttribute(MAP_SLOTS_PER_HOST));
+		int numRedSlots = Integer.parseInt(specsElem
+				.getAttribute(RED_SLOTS_PER_HOST));
+		long maxSlotMemory = Long.parseLong(specsElem
+				.getAttribute(MAX_SLOT_MEMORY)) << 20;
+
+		// Create and return the cluster
+		return ClusterConfiguration.createClusterConfiguration(clusterName,
+				numRacks, numHostsPerRack, numMapSlots, numRedSlots,
+				maxSlotMemory);
 	}
 
 	/**
@@ -420,16 +485,20 @@ public class XMLClusterParser {
 
 		// Get the task tracker attributes
 		TaskTrackerInfo taskTrackerInfo = new TaskTrackerInfo();
-
 		taskTrackerInfo.setName(taskTracker.getAttribute(NAME));
-		if (taskTracker.getAttribute(PORT) != null
-				&& !taskTracker.getAttribute(PORT).equals(""))
-			taskTrackerInfo.setPort(Integer.parseInt(taskTracker
-					.getAttribute(PORT)));
+
+		String port = taskTracker.getAttribute(PORT);
+		if (port != null && !port.equals(""))
+			taskTrackerInfo.setPort(Integer.parseInt(port));
+
 		taskTrackerInfo.setNumMapSlots(Integer.parseInt(taskTracker
 				.getAttribute(MAP_SLOTS)));
 		taskTrackerInfo.setNumReduceSlots(Integer.parseInt(taskTracker
 				.getAttribute(RED_SLOTS)));
+
+		String maxMem = taskTracker.getAttribute(MAX_SLOT_MEMORY);
+		if (maxMem != null && !maxMem.equals(""))
+			taskTrackerInfo.setMaxSlotMemory(Long.parseLong(maxMem) << 20);
 
 		// Add the task tracker to the host
 		host.setTaskTracker(taskTrackerInfo);

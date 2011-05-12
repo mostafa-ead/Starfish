@@ -14,6 +14,7 @@ import com.sun.btrace.annotations.Return;
 import com.sun.btrace.annotations.Self;
 import com.sun.btrace.annotations.Where;
 
+import edu.duke.starfish.profile.profileinfo.utils.Constants;
 import edu.duke.starfish.profile.profiler.Profiler;
 import edu.duke.starfish.profile.sampling.ProfileSampler;
 
@@ -33,13 +34,18 @@ public class BTraceProfiler {
 	@OnMethod(clazz = "org.apache.hadoop.mapred.JobClient", 
 			method = "submitJobInternal", 
 			location = @Location(value = Kind.ENTRY))
-	public static void onJobClinet_submitJobInternal_entry(AnyType input) {
+	public static void onJobClient_submitJobInternal_entry(AnyType input) {
 
 		// Set the system property as a configuration setting
 		Configuration conf = (Configuration) input;
 		if (conf.get(Profiler.BTRACE_PROFILE_DIR) == null)
 			conf.set(Profiler.BTRACE_PROFILE_DIR, 
 					System.getProperty(Profiler.BTRACE_PROFILE_DIR));
+
+		// The cluster name
+		if (conf.get(Profiler.PROFILER_CLUSTER_NAME) == null)
+			conf.set(Profiler.PROFILER_CLUSTER_NAME, 
+					System.getProperty(Profiler.PROFILER_CLUSTER_NAME));
 
 		// The sampling mode (off, profiles, or tasks)
 		if (conf.get(Profiler.PROFILER_SAMPLING_MODE) == null)
@@ -52,13 +58,15 @@ public class BTraceProfiler {
 					System.getProperty(Profiler.PROFILER_SAMPLING_FRACTION));
 		
 		// Enable profiling
-		Profiler.enableExecutionProfiling(conf);
-		
-		// Profile only a fraction of the tasks if requested
-		if (conf.get(Profiler.PROFILER_SAMPLING_MODE, "off").equals("profiles")) {
-			if (!ProfileSampler.sampleTasksToProfile(conf)) {
-				// Disable profiling
-				conf.setBoolean("mapred.task.profile", false);
+		if (Profiler.enableExecutionProfiling(conf)) {
+			
+			// Profile only a fraction of the tasks if requested
+			if (conf.get(Profiler.PROFILER_SAMPLING_MODE, "off").equals("profiles")) {
+				
+				if (!ProfileSampler.sampleTasksToProfile(conf)) {
+					// Disable profiling
+					conf.setBoolean(Constants.MR_TASK_PROFILE, false);
+				}
 			}
 		}
 	}
@@ -70,8 +78,9 @@ public class BTraceProfiler {
 	public static void onJobClinet_writeNewSplits_getSplits(AnyType job, @Return List<InputSplit> splits) {
 
 		JobContext context = (JobContext) job;
-		if (context.getConfiguration().get(Profiler.PROFILER_SAMPLING_MODE,
-				"off").equals("tasks")) {
+		Configuration conf = context.getConfiguration();
+		if (conf.getBoolean(Constants.MR_TASK_PROFILE, false) &&
+				conf.get(Profiler.PROFILER_SAMPLING_MODE, "off").equals("tasks")) {
 			// Only execute a sample of the map tasks
 			ProfileSampler.sampleInputSplits(context, splits);
 		}

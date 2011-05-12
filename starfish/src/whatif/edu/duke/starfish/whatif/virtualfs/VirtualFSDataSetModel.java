@@ -1,5 +1,7 @@
 package edu.duke.starfish.whatif.virtualfs;
 
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.*;
+
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
@@ -71,7 +73,8 @@ public class VirtualFSDataSetModel extends DataSetModel {
 
 				for (VirtualFile file : files) {
 					if (file.isCompress()
-							&& !conf.get(INPUT_FORMAT, TIF).equals(SFIF)) {
+							&& !conf.get(MR_INPUT_FORMAT_CLASS, MR_TIF).equals(
+									MR_SFIF)) {
 						// File is compressed and cannot be split
 						inputSpecs.add(new MapInputSpecs(i, 1, file.getSize(),
 								file.isCompress(), DataLocality.DATA_LOCAL));
@@ -152,8 +155,8 @@ public class VirtualFSDataSetModel extends DataSetModel {
 	public static void setVirtualOutputPaths(VirtualFileSystem vfs,
 			Configuration conf, String outputDir, List<JobOutputSpecs> outSpecs) {
 
-		boolean mapOnly = conf.getInt("mapred.reduce.tasks", 1) == 0;
-		boolean compress = conf.getBoolean("mapred.output.compress", false);
+		boolean mapOnly = conf.getInt(MR_RED_TASKS, 1) == 0;
+		boolean compress = conf.getBoolean(MR_COMPRESS_OUT, false);
 
 		// Trim trailing separator
 		outputDir.trim();

@@ -1,5 +1,7 @@
 package edu.duke.starfish.profile.profileinfo.setup;
 
+import edu.duke.starfish.profile.profileinfo.utils.Constants;
+
 /**
  * Represents the information about a Task Tracker
  * 
@@ -14,14 +16,17 @@ public class TaskTrackerInfo extends TrackerInfo {
 	 */
 	private int numMapSlots; // The number of map slots
 	private int numReduceSlots; // The number of reduce slots
+	private long maxSlotMemory; // The max memory per slot (in bytes)
 
 	/**
 	 * Default Constructor
 	 */
 	public TaskTrackerInfo() {
 		super();
-		this.numMapSlots = 0;
-		this.numReduceSlots = 0;
+		// Use Hadoop defaults to initialize
+		this.numMapSlots = Constants.DEF_MAX_MAP_TASKS;
+		this.numReduceSlots = Constants.DEF_MAX_RED_TASKS;
+		this.maxSlotMemory = Constants.DEF_TASK_MEM;
 	}
 
 	/**
@@ -37,12 +42,15 @@ public class TaskTrackerInfo extends TrackerInfo {
 	 *            the number of map slots
 	 * @param numReduceSlots
 	 *            the number of reduce slots
+	 * @param maxSlotMemory
+	 *            the max memory per slot in bytes
 	 */
 	public TaskTrackerInfo(long internalId, String name, String hostName,
-			int port, int numMapSlots, int numReduceSlots) {
+			int port, int numMapSlots, int numReduceSlots, long maxSlotMemory) {
 		super(internalId, name, hostName, port);
 		this.numMapSlots = numMapSlots;
 		this.numReduceSlots = numReduceSlots;
+		this.maxSlotMemory = maxSlotMemory;
 	}
 
 	/**
@@ -54,6 +62,7 @@ public class TaskTrackerInfo extends TrackerInfo {
 		super(other);
 		this.numMapSlots = other.numMapSlots;
 		this.numReduceSlots = other.numReduceSlots;
+		this.maxSlotMemory = other.maxSlotMemory;
 	}
 
 	/* ***************************************************************
@@ -76,6 +85,13 @@ public class TaskTrackerInfo extends TrackerInfo {
 	}
 
 	/**
+	 * @return the max memory per slot in bytes
+	 */
+	public long getMaxTaskMemory() {
+		return maxSlotMemory;
+	}
+
+	/**
 	 * @param numMapSlots
 	 *            the numMapSlots to set
 	 */
@@ -93,6 +109,15 @@ public class TaskTrackerInfo extends TrackerInfo {
 		this.numReduceSlots = numReduceSlots;
 	}
 
+	/**
+	 * @param maxSlotMemory
+	 *            the max memory per slot (in bytes) to set
+	 */
+	public void setMaxSlotMemory(long maxSlotMemory) {
+		this.hash = -1;
+		this.maxSlotMemory = maxSlotMemory;
+	}
+
 	/* ***************************************************************
 	 * OVERRIDEN METHODS
 	 * ***************************************************************
@@ -107,6 +132,7 @@ public class TaskTrackerInfo extends TrackerInfo {
 			hash = super.hashCode();
 			hash = 31 * hash + numMapSlots;
 			hash = 37 * hash + numReduceSlots;
+			hash = 41 * hash + (int) (maxSlotMemory ^ (maxSlotMemory >>> 32));
 		}
 		return hash;
 	}
@@ -123,6 +149,8 @@ public class TaskTrackerInfo extends TrackerInfo {
 		if (!(obj instanceof TaskTrackerInfo))
 			return false;
 		TaskTrackerInfo other = (TaskTrackerInfo) obj;
+		if (maxSlotMemory != other.maxSlotMemory)
+			return false;
 		if (numMapSlots != other.numMapSlots)
 			return false;
 		if (numReduceSlots != other.numReduceSlots)

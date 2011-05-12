@@ -13,7 +13,7 @@ BTrace Installation
 In order to profile the execution of a Map-Reduce job in a cluster 
 you must first install the BTrace jars and classes.
 
-1. Set the global profiling parameters in bin/profile-config.sh
+1. Set the global profiling parameters in bin/config.sh
    The most important parameter is SLAVES_BTRACE_DIR, which specifies
    the BTrace installation directory at all slave nodes.
    
@@ -30,7 +30,7 @@ Profile a MapReduce job execution
 There are two ways to profile the execution of a MapReduce job.
 
 Method A (Recommended): Using the bin/profile script
-1. Set the global profiling parameters in bin/profile-config.sh
+1. Set the global profiling parameters in bin/config.sh
 
 2. Execute the bin/profile script
 

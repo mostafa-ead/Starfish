@@ -1,6 +1,6 @@
 package edu.duke.starfish.whatif.data;
 
-import static edu.duke.starfish.whatif.Constants.MR_RED_TASKS;
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.*;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,11 +21,6 @@ import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCounter;
  * @author hero
  */
 public abstract class DataSetModel {
-
-	// Constants
-	protected static final String SFIF = "org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat";
-	protected static final String TIF = "org.apache.hadoop.mapreduce.lib.input.TextInputFormat";
-	protected static final String INPUT_FORMAT = "mapreduce.inputformat.class";
 
 	/**
 	 * Generate the input specifications for the map oracles

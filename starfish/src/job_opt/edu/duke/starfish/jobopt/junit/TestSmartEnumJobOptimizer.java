@@ -8,7 +8,7 @@ import org.junit.Test;
 import edu.duke.starfish.jobopt.optimizer.SmartEnumJobOptimizer;
 import edu.duke.starfish.profile.profileinfo.ClusterConfiguration;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
-import edu.duke.starfish.whatif.Constants;
+import edu.duke.starfish.profile.profileinfo.utils.Constants;
 import edu.duke.starfish.whatif.junit.SampleDataSetModel;
 import edu.duke.starfish.whatif.junit.SampleProfiles;
 import edu.duke.starfish.whatif.oracle.JobProfileOracle;

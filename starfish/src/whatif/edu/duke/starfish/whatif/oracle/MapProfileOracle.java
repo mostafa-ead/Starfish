@@ -1,6 +1,6 @@
 package edu.duke.starfish.whatif.oracle;
 
-import static edu.duke.starfish.whatif.Constants.*;
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.*;
 
 import org.apache.hadoop.conf.Configuration;
 
@@ -92,6 +92,13 @@ public class MapProfileOracle extends TaskProfileOracle {
 	 * @return a virtual map profile
 	 */
 	public MRMapProfile whatif(Configuration conf, MapInputSpecs inputSpecs) {
+
+		if (sourceProf.isEmpty()) {
+			throw new RuntimeException(
+					"Unable to process a what-if request. The source map profile "
+							+ sourceProf.getTaskId() + " is empty!");
+		}
+
 		this.conf = conf;
 		this.inputSpecs = inputSpecs;
 
@@ -548,6 +555,12 @@ public class MapProfileOracle extends TaskProfileOracle {
 					sourceProf.getCostFactor(
 							MRCostFactors.INPUT_UNCOMPRESS_CPU_COST,
 							DEF_COST_CPU_UNCOMPRESS));
+
+			if (virtualProf
+					.getCostFactor(MRCostFactors.INPUT_UNCOMPRESS_CPU_COST) == 0d)
+				virtualProf.addCostFactor(
+						MRCostFactors.INPUT_UNCOMPRESS_CPU_COST,
+						DEF_COST_CPU_UNCOMPRESS);
 		}
 
 		// Set output compression cost
@@ -556,6 +569,12 @@ public class MapProfileOracle extends TaskProfileOracle {
 					sourceProf.getCostFactor(
 							MRCostFactors.OUTPUT_COMPRESS_CPU_COST,
 							DEF_COST_CPU_COMPRESS));
+
+			if (virtualProf
+					.getCostFactor(MRCostFactors.OUTPUT_COMPRESS_CPU_COST) == 0d)
+				virtualProf.addCostFactor(
+						MRCostFactors.OUTPUT_COMPRESS_CPU_COST,
+						DEF_COST_CPU_COMPRESS);
 		}
 	}
 
@@ -656,10 +675,11 @@ public class MapProfileOracle extends TaskProfileOracle {
 		virtualProf.addTiming(MRTaskPhase.COLLECT, collectCPU / NS_PER_MS);
 
 		// CPU cost for SPILL
+		double numRecsPerRed = virtualProf
+				.getCounter(MRCounter.MAP_RECS_PER_BUFF_SPILL)
+				/ (double) conf.getInt(MR_RED_TASKS, 1);
 		double sortCPU = mapOutRecs
-				* (Math.log(virtualProf
-						.getCounter(MRCounter.MAP_RECS_PER_BUFF_SPILL)
-						/ (double) conf.getInt(MR_RED_TASKS, 1)))
+				* Math.log((numRecsPerRed < 10) ? 10 : numRecsPerRed)
 				* virtualProf.getCostFactor(MRCostFactors.SORT_CPU_COST);
 
 		double combineCPU = 0d;

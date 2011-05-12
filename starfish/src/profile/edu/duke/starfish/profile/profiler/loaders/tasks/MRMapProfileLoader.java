@@ -11,6 +11,8 @@ import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRStatistic
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRTaskPhase;
 import edu.duke.starfish.profile.profileinfo.utils.ProfileUtils;
 
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.*;
+
 /**
  * This class represents the profile for a single map attempt. It contains all
  * the logic for calculating the task's statistics and costs given lists of
@@ -72,14 +74,6 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 	private static final int POS_MERGE_READ_WRITE_COUNT = 2;
 	private static final int POS_MERGE_UNCOMPRESS = 3;
 	private static final int POS_MERGE_COMPRESS = 4;
-
-	// Default input/output class names
-	private static final String SFIF = "org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat";
-	private static final String TIF = "org.apache.hadoop.mapreduce.lib.input.TextInputFormat";
-	private static final String TSIF = "org.apache.hadoop.examples.terasort.TeraInputFormat";
-	private static final String SFOF = "org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat";
-	private static final String TOF = "org.apache.hadoop.mapreduce.lib.output.TextOutputFormat";
-	private static final String TSOF = "org.apache.hadoop.examples.terasort.TeraOutputFormat";
 
 	/**
 	 * Constructor
@@ -145,19 +139,32 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 
 		// Calculate the number of map input bytes
 		if (mapInputBytes == 0) {
-			String inputFormat = conf.get("mapreduce.inputformat.class", TIF);
+			String inputFormat = conf.get(MR_INPUT_FORMAT_CLASS, MR_TIF);
 
-			if (inputFormat.equals(TIF)) {
+			if (inputFormat.equals(MR_TIF) || inputFormat.equals(MR_SFTIF)
+					|| inputFormat.equals(MR_WFIF)) {
 				// Equals value size + newlines
 				mapInputBytes = mapRecords.get(POS_MAP_INPUT_V_BYTE_COUNT)
 						.getValue()
 						+ mapInputPairs;
-			} else if (inputFormat.equals(SFIF) || inputFormat.equals(TSIF)) {
+			} else if (inputFormat.equals(MR_SFIF)
+					|| inputFormat.equals(MR_TSIF)
+					|| inputFormat.equals(MR_KVTIF)
+					|| inputFormat.equals(MR_KVTPIF)
+					|| inputFormat.equals(MR_WFTPIF)) {
 				// Equals key size + value size + separator + newline
 				mapInputBytes = mapRecords.get(POS_MAP_INPUT_K_BYTE_COUNT)
 						.getValue()
 						+ mapRecords.get(POS_MAP_INPUT_V_BYTE_COUNT).getValue()
 						+ 2 * mapInputPairs;
+			} else if (inputFormat.equals(MR_TBIF)) {
+				// Equals key size + value size
+				mapInputBytes = mapRecords.get(POS_MAP_INPUT_K_BYTE_COUNT)
+						.getValue()
+						+ mapRecords.get(POS_MAP_INPUT_V_BYTE_COUNT).getValue();
+				// Might not need this...
+				profile.addCounter(MRCounter.HDFS_BYTES_READ, mapInputBytes);
+
 			} else {
 				// Equals HDFS input (without compression)
 				mapInputBytes = (mapRecords.get(POS_MAP_UNCOMPRESS).getValue() == 0) ? hdfsBytesRead
@@ -169,15 +176,28 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 
 		// Calculate the number of map output bytes
 		if (mapOutputBytes == 0) {
-			String outputFormat = conf.get("mapreduce.outputformat.class", TOF);
+			String outputFormat = conf.get(MR_OUTPUT_FORMAT_CLASS, MR_TOF);
 
-			if (outputFormat.equals(TOF) || outputFormat.equals(SFOF)
-					|| outputFormat.equals(TSOF)) {
+			if (outputFormat.equals(MR_TOF) || outputFormat.equals(MR_SFOF)
+					|| outputFormat.equals(MR_TSOF)) {
 				// Equals keys + values + separator + newline
 				mapOutputBytes = mapRecords.get(POS_MAP_OUTPUT_K_BYTE_COUNT)
 						.getValue()
 						+ mapRecords.get(POS_MAP_OUTPUT_V_BYTE_COUNT)
 								.getValue() + 2 * mapOutputPairs;
+			} else if (outputFormat.equals(MR_TBOF)) {
+				// Equals keys + values ... I don't think we need separator +
+				// newline because the keys and values go straight to HBase
+				mapOutputBytes = mapRecords.get(POS_MAP_OUTPUT_K_BYTE_COUNT)
+						.getValue()
+						+ mapRecords.get(POS_MAP_OUTPUT_V_BYTE_COUNT)
+								.getValue();
+
+				// Might not need this...
+				profile
+						.addCounter(MRCounter.HDFS_BYTES_WRITTEN,
+								mapOutputBytes);
+
 			} else {
 				// Equals HDFS output (without compression)
 				mapOutputBytes = (mapRecords.get(POS_MAP_COMPRESS).getValue() == 0) ? hdfsBytesWritten
@@ -209,12 +229,18 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 		}
 
 		// Calculate and cost HDFS read I/O Costs
+		double readTime = mapRecords.get(POS_MAP_READ).getValue()
+				- mapRecords.get(POS_MAP_UNCOMPRESS).getValue();
+
+		// Calculate and cost HDFS read I/O Costs
 		if (hdfsBytesRead != 0) {
 			// Cost = pure read time / bytes read from HDFS
-			profile.addCostFactor(MRCostFactors.READ_HDFS_IO_COST, (mapRecords
-					.get(POS_MAP_READ).getValue() - mapRecords.get(
-					POS_MAP_UNCOMPRESS).getValue())
+			profile.addCostFactor(MRCostFactors.READ_HDFS_IO_COST, readTime
 					/ (double) hdfsBytesRead);
+		} else if (mapInputBytes != 0) {
+			// Cost = pure read time / bytes read into Map
+			profile.addCostFactor(MRCostFactors.READ_HDFS_IO_COST, readTime
+					/ (double) mapInputBytes);
 		}
 
 		// Calculate and set the input compression ratio and cost
@@ -233,12 +259,12 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 			}
 		}
 
-		int numReducers = conf.getInt("mapred.reduce.tasks", 1);
+		int numReducers = conf.getInt(MR_RED_TASKS, 1);
 		if (numReducers == 0) {
 			// Map-only task
 
 			// Calculate and set the output compression ratio and cost
-			if (conf.getBoolean("mapred.output.compress", false) == true) {
+			if (conf.getBoolean(MR_COMPRESS_OUT, false) == true) {
 				if (mapOutputBytes != 0) {
 					profile.addStatistic(MRStatistics.OUT_COMPRESS_RATIO,
 							hdfsBytesWritten / (double) mapOutputBytes);
@@ -254,18 +280,20 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 				}
 			}
 
+			double writeTime = (mapRecords.get(POS_MAP_WRITE).getValue()
+					+ mapRecords.get(POS_MAP_DIR_WRITE).getValue()
+					- mapRecords.get(POS_MAP_COMPRESS).getValue() - mapRecords
+					.get(POS_MAP_DIR_COMPRESS).getValue());
+
 			// Calculate and set the HDFS write I/O cost
 			if (hdfsBytesWritten != 0) {
 				// Cost = pure write time / bytes written to HDFS
-				profile
-						.addCostFactor(MRCostFactors.WRITE_HDFS_IO_COST,
-								(mapRecords.get(POS_MAP_WRITE).getValue()
-										+ mapRecords.get(POS_MAP_DIR_WRITE)
-												.getValue()
-										- mapRecords.get(POS_MAP_COMPRESS)
-												.getValue() - mapRecords.get(
-										POS_MAP_DIR_COMPRESS).getValue())
-										/ (double) hdfsBytesWritten);
+				profile.addCostFactor(MRCostFactors.WRITE_HDFS_IO_COST,
+						writeTime / (double) hdfsBytesWritten);
+			} else if (mapOutputBytes != 0) {
+				// Cost = pure write time / bytes written by map
+				profile.addCostFactor(MRCostFactors.WRITE_HDFS_IO_COST,
+						writeTime / (double) mapOutputBytes);
 			}
 
 		} else {
@@ -277,7 +305,7 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 							POS_SPILL_COMPRESS, POS_SPILL_COMPRESS_BYTE_COUNT));
 
 			// Calculate and set the combiner statistics and costs
-			if (conf.get("mapreduce.combine.class") != null) {
+			if (conf.get(MR_COMBINE_CLASS) != null) {
 				// Get the counters
 				long combineInputPairs = profile.getCounter(
 						MRCounter.COMBINE_INPUT_RECORDS, 1l);
@@ -346,7 +374,7 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 			}
 
 			// Calculate and set the intermediate compression ratio and cost
-			if (conf.getBoolean("mapred.compress.map.output", false) == true) {
+			if (conf.getBoolean(MR_COMPRESS_MAP_OUT, false) == true) {
 				profile.addStatistic(MRStatistics.INTERM_COMPRESS_RATIO,
 						averageRecordValueRatios(spillRecords,
 								NUM_SPILL_PHASES,
@@ -405,7 +433,7 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 				- mapRecords.get(POS_MAP_MEM).getValue();
 		cleanup_mem = (cleanup_mem < 0l) ? 0l : cleanup_mem;
 
-		int sortmb = conf.getInt("io.sort.mb", 100) << 20;
+		int sortmb = conf.getInt(MR_SORT_MB, 100) << 20;
 		startup_mem = (startup_mem > sortmb) ? startup_mem - sortmb : 0l;
 
 		profile.addStatistic(MRStatistics.STARTUP_MEM, (double) startup_mem);
@@ -419,7 +447,7 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 					(double) map_mem);
 
 		// Set the input file path
-		String[] jobInputs = conf.getStrings("mapred.input.dir");
+		String[] jobInputs = conf.getStrings(MR_INPUT_DIR);
 		String mapInput = mapRecords.get(POS_MAP_INPUT).getProcess();
 		((MRMapProfile) profile).setInputIndex(getMapInputPosition(jobInputs,
 				mapInput));
@@ -447,7 +475,7 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 				.getValue()
 				/ NS_PER_MS);
 
-		int numReducers = conf.getInt("mapred.reduce.tasks", 1);
+		int numReducers = conf.getInt(MR_RED_TASKS, 1);
 		if (numReducers == 0) {
 			profile.addTiming(MRTaskPhase.WRITE, (mapRecords.get(POS_MAP_WRITE)
 					.getValue() + mapRecords.get(POS_MAP_DIR_WRITE).getValue())
@@ -489,12 +517,14 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 			int sortPos, int countPos, int numReducers) {
 		double sumCosts = 0d;
 		int numSpills = 0;
+		double numRecsPerRed = 1d;
 
 		for (int i = 0; i < records.size(); i += NUM_SPILL_PHASES) {
+			numRecsPerRed = records.get(i + countPos).getValue()
+					/ (double) numReducers;
 			sumCosts += (records.get(i + sortPos).getValue() * Math.log(2))
-					/ (records.get(i + countPos).getValue() * Math.log(records
-							.get(i + countPos).getValue()
-							/ (double) numReducers));
+					/ (records.get(i + countPos).getValue() * Math
+							.log((numRecsPerRed < 2) ? 2 : numRecsPerRed));
 			++numSpills;
 		}
 
@@ -508,7 +538,7 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 	 */
 	private boolean getAndValidateProfileRecords()
 			throws ProfileFormatException {
-		boolean mapOnly = (conf.getInt("mapred.reduce.tasks", 1) == 0);
+		boolean mapOnly = (conf.getInt(MR_RED_TASKS, 1) == 0);
 
 		mapRecords = getProfileRecords(ProfileToken.MAP);
 		if (!validateMapRecords(mapRecords))

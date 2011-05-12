@@ -10,6 +10,8 @@ import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCounter;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRStatistics;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRTaskPhase;
 
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.*;
+
 /**
  * This class represents the profile for a single reduce attempt. It contains
  * all the logic for calculating the task's statistics and costs given lists of
@@ -73,11 +75,6 @@ public class MRReduceProfileLoader extends MRTaskProfileLoader {
 	private static final int POS_REDUCE_MEM = 13;
 	private static final int POS_REDUCE_FINAL_WRITE = 14;
 	private static final int POS_REDUCE_FINAL_COMPRESS = 15;
-
-	// Default input/output class names
-	private static final String SFOF = "org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat";
-	private static final String TOF = "org.apache.hadoop.mapreduce.lib.output.TextOutputFormat";
-	private static final String TSOF = "org.apache.hadoop.examples.terasort.TeraOutputFormat";
 
 	/**
 	 * Constructor
@@ -152,15 +149,24 @@ public class MRReduceProfileLoader extends MRTaskProfileLoader {
 
 		// Calculate the number of reduce output bytes
 		long reduceOutputBytes = 0;
-		String outputFormat = conf.get("mapreduce.outputformat.class", TOF);
+		String outputFormat = conf.get(MR_OUTPUT_FORMAT_CLASS, MR_TOF);
 
-		if (outputFormat.equals(TOF) || outputFormat.equals(SFOF)
-				|| outputFormat.equals(TSOF)) {
+		if (outputFormat.equals(MR_TOF) || outputFormat.equals(MR_SFOF)
+				|| outputFormat.equals(MR_TSOF)
+				|| outputFormat.equals(MR_SFTOF)) {
 			// Equals keys + values + separator + newline
 			reduceOutputBytes = reduceRecords.get(POS_REDUCE_KEY_BYTE_COUNT)
 					.getValue()
 					+ reduceRecords.get(POS_REDUCE_VALUE_BYTE_COUNT).getValue()
 					+ 2 * reduceOutputPairs;
+		} else if (outputFormat.equals(MR_TBOF)) {
+			// Equals keys + values
+			reduceOutputBytes = reduceRecords.get(POS_REDUCE_KEY_BYTE_COUNT)
+					.getValue()
+					+ reduceRecords.get(POS_REDUCE_VALUE_BYTE_COUNT).getValue();
+
+			// Might not need this...
+			profile.addCounter(MRCounter.HDFS_BYTES_WRITTEN, reduceOutputBytes);
 		} else {
 			// Equals HDFS output (without compression)
 			reduceOutputBytes = (reduceRecords.get(POS_REDUCE_COMPRESS)
@@ -177,7 +183,7 @@ public class MRReduceProfileLoader extends MRTaskProfileLoader {
 
 		// Calculate and set the intermediate compression ratio and cost
 		double comprRatio = 1;
-		if (conf.getBoolean("mapred.compress.map.output", false) == true) {
+		if (conf.getBoolean(MR_COMPRESS_MAP_OUT, false) == true) {
 			comprRatio = averageRecordValueRatios(shuffleRecords,
 					NUM_SHUFFLE_PHASES, POS_SHUFFLE_COMPR_BYTE_COUNT,
 					POS_SHUFFLE_UNCOMPR_BYTE_COUNT);
@@ -275,22 +281,24 @@ public class MRReduceProfileLoader extends MRTaskProfileLoader {
 					/ (double) fileBytesWritten);
 		}
 
+		double writeTime = (reduceRecords.get(POS_REDUCE_WRITE).getValue()
+				+ reduceRecords.get(POS_REDUCE_FINAL_WRITE).getValue()
+				- reduceRecords.get(POS_REDUCE_COMPRESS).getValue() - reduceRecords
+				.get(POS_REDUCE_FINAL_COMPRESS).getValue());
+
 		// Calculate and set the HDFS write I/O cost
 		if (hdfsBytesWritten != 0) {
 			// Cost = pure write time / bytes written to HDFS
-			profile
-					.addCostFactor(MRCostFactors.WRITE_HDFS_IO_COST,
-							(reduceRecords.get(POS_REDUCE_WRITE).getValue()
-									+ reduceRecords.get(POS_REDUCE_FINAL_WRITE)
-											.getValue()
-									- reduceRecords.get(POS_REDUCE_COMPRESS)
-											.getValue() - reduceRecords.get(
-									POS_REDUCE_FINAL_COMPRESS).getValue())
-									/ (double) hdfsBytesWritten);
+			profile.addCostFactor(MRCostFactors.WRITE_HDFS_IO_COST, writeTime
+					/ (double) hdfsBytesWritten);
+		} else if (reduceOutputBytes != 0) {
+			// Cost = pure write time / bytes written by reducer
+			profile.addCostFactor(MRCostFactors.WRITE_HDFS_IO_COST, writeTime
+					/ (double) reduceOutputBytes);
 		}
 
 		// Calculate and set the combiner statistics and costs
-		if (conf.get("mapreduce.combine.class") != null) {
+		if (conf.get(MR_COMBINE_CLASS) != null) {
 
 			long combineInputPairs = profile.getCounter(
 					MRCounter.COMBINE_INPUT_RECORDS, 0l);

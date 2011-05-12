@@ -1,5 +1,8 @@
 package edu.duke.starfish.jobopt.optimizer;
 
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_COMBINE_CLASS;
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.STARFISH_USE_COMBINER;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -17,7 +20,6 @@ import edu.duke.starfish.jobopt.space.ParameterSpacePoint;
 import edu.duke.starfish.profile.profileinfo.ClusterConfiguration;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
 import edu.duke.starfish.profile.profiler.XMLProfileParser;
-import edu.duke.starfish.whatif.Constants;
 import edu.duke.starfish.whatif.WhatIfEngine;
 import edu.duke.starfish.whatif.data.DataSetModel;
 import edu.duke.starfish.whatif.data.RealAvgDataSetModel;
@@ -112,7 +114,7 @@ public abstract class JobOptimizer {
 	}
 
 	/**
-	 * Get the best MR job running time.
+	 * Get the best MR job running time (in ms).
 	 * 
 	 * Warning: This method should only be called after findBestConfiguration()
 	 * is called
@@ -221,8 +223,8 @@ public abstract class JobOptimizer {
 			}
 
 			// Special case for using the combiner
-			if (conf.get(Constants.MR_COMBINE_CLASS) != null
-					&& conf.getBoolean(Constants.STARFISH_USE_COMBINER, true) == false) {
+			if (conf.get(MR_COMBINE_CLASS) != null
+					&& conf.getBoolean(STARFISH_USE_COMBINER, true) == false) {
 				// There is a combiner but the optimizer said not to use it and
 				// there is no way to remove a configuration setting.
 				// So, create a copy, clear the current conf, and copy over all
@@ -230,7 +232,7 @@ public abstract class JobOptimizer {
 				Configuration copy = new Configuration(conf);
 				conf.clear();
 				for (Entry<String, String> entry : copy) {
-					if (!entry.getKey().equals(Constants.MR_COMBINE_CLASS))
+					if (!entry.getKey().equals(MR_COMBINE_CLASS))
 						conf.set(entry.getKey(), entry.getValue());
 				}
 			}
@@ -346,6 +348,24 @@ public abstract class JobOptimizer {
 		}
 
 		return bestConf;
+	}
+
+	/**
+	 * Create and return the default optimizer to use
+	 * 
+	 * @param profile
+	 *            the job profile
+	 * @param dataModel
+	 *            the data model
+	 * @param cluster
+	 *            the cluster
+	 * @return the job optimizer
+	 */
+	public static JobOptimizer getJobOptimizer(MRJobProfile profile,
+			DataSetModel dataModel, ClusterConfiguration cluster) {
+
+		return getJobOptimizer(OPT_SMART_RRS, new JobProfileOracle(profile),
+				dataModel, cluster, new BasicFIFOScheduler());
 	}
 
 	/**

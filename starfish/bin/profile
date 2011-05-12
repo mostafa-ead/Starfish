@@ -7,51 +7,30 @@
 # a MapReduce job
 #
 # The user should not need to modify this script. All user-defined
-# parameters can be set in 'profile-config.sh'.
+# parameters can be set in 'config.sh'.
 #
 # Author: Herodotos Herodotou
-# Date:   February 10, 2011
+# Date:   May 11, 2011
 ###################################################################
 
 
 # if no args specified, show usage
 if [ $# = 0 ]; then
-  echo "Usage: profile jar jarFile [mainClass] [genericOptions] args..."
+  echo "Usage: $0 jar jarFile [mainClass] [genericOptions] args..."
   echo ""
-  echo "Generic options supported are:"
-  echo "  -conf <configuration file>  an application configuration file"
-  echo "  -D <property=value>         use value for given property"
-  echo "  -files <files>              comma separated files to be copied to cluster"
-  echo "  -libjars <jars>             comma separated jar files to include in classpath"
-  echo "  -archives <archives>        comma separated archives to unarchive on cluster"
+  echo "Profile-related parameters are set in bin/config.sh"
   echo ""
-  echo "Profile-related parameters are set in profile-config.sh"
   exit 1
 fi
 
-# Get the build and bin directories
-current=`pwd`
+# Perform common tasks like Load configurations and initializations
 bin=`dirname "$0"`
-bin=`cd "$bin"; pwd`
-build=`cd "$bin/../"; pwd`
-cd $current;
+. "$bin"/common.sh
 
-MASTER_BTRACE_DIR=$build/hadoop-btrace
-
-# Get the user-defined parameters
-. "$bin"/profile-config.sh
-
-# Ensure the user has set the BTrace directory
-if [ "$SLAVES_BTRACE_DIR" = "" ]; then
-  echo "Error: SLAVES_BTRACE_DIR is not set."
-  echo "       Please set it in $bin/profile-config.sh"
-  exit 1
-fi
-HADOOP_OPTS="${HADOOP_OPTS} -Dbtrace.profile.dir=${SLAVES_BTRACE_DIR}"
 
 # Default output directory is the working directory
 if [ "$PROFILER_OUTPUT_DIR" = "" ]; then
-  PROFILER_OUTPUT_DIR=$current
+  PROFILER_OUTPUT_DIR=$CURRENT_DIR
 fi
 HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.profiler.output.dir=${PROFILER_OUTPUT_DIR}"
 
@@ -85,7 +64,7 @@ HADOOP_OPTS="${HADOOP_OPTS} -javaagent:${MASTER_BTRACE_DIR}/btrace-agent.jar=dum
 
 # Add the profiler jar to the classpath
 HADOOP_CLASSPATH_OLD=$HADOOP_CLASSPATH
-HADOOP_CLASSPATH=`ls $build/starfish-*-profiler.jar`
+HADOOP_CLASSPATH=`ls $BASE_DIR/starfish-*-profiler.jar`
 if [ "$HADOOP_CLASSPATH_OLD" != "" ]; then
   HADOOP_CLASSPATH=${HADOOP_CLASSPATH}:${HADOOP_CLASSPATH_OLD}
 fi

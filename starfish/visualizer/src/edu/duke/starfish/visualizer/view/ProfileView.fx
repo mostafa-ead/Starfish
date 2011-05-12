@@ -203,7 +203,6 @@ public class CustomChart  extends CustomNode {
 		// Create the graph
 		var graph = Group{ content: [] };
 
-       
 		// chart title
         insert Text {
             	x : start_x - 20 ;
@@ -287,7 +286,11 @@ public class CustomChart  extends CustomNode {
                 
 				onMouseMoved: function(e: MouseEvent): Void {
 				    // Show the toolTip
-				    toolTip.show("{phases[i].getName()}: {timings[i] as Integer} sec   ", e.sceneX, e.sceneY, 0, 0, 120, 13);
+				    if (timings[i] < 1) {
+				    	toolTip.show("{phases[i].getName()}: {(timings[i] * 1000) as Integer} ms    ", e.sceneX, e.sceneY, 0, 0, 120, 13);
+				    } else {
+				    	toolTip.show("{phases[i].getName()}: {timings[i] as Integer} sec   ", e.sceneX, e.sceneY, 0, 0, 120, 13);
+				    }
 				}
 				
 				onMouseExited : function(e : MouseEvent) {
@@ -344,7 +347,7 @@ public class CustomChart  extends CustomNode {
 				}
             } into graph.content;
 		}
-		       
+		
         return graph;
     }
     
@@ -487,6 +490,8 @@ public class ProfileView extends AppView {
            unit = Math.round(unit/100) * 100;
        } else if (unit >= 10){
            unit = Math.round(unit/10) * 10;
+       } else if (unit == 0) {
+           unit = 1;
        }
        var numTicks = (Math.ceil(totalTime / unit) + 1) as Integer;
        

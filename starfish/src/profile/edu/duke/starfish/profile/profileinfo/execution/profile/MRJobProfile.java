@@ -29,6 +29,7 @@ public class MRJobProfile extends MRExecProfile {
 	 */
 
 	private String jobId; // The job ID
+	private String clusterName; // The cluster name where profile was obtained
 	private String[] jobInputs; // The input paths of the job
 	private List<MRMapProfile> mapProfiles; // Map profiles
 	private List<MRReduceProfile> reduceProfiles;// Reduce profiles
@@ -65,6 +66,7 @@ public class MRJobProfile extends MRExecProfile {
 		super();
 
 		this.jobId = jobId;
+		this.clusterName = null;
 		this.jobInputs = null;
 		this.mapProfiles = null;
 		this.reduceProfiles = null;
@@ -82,6 +84,7 @@ public class MRJobProfile extends MRExecProfile {
 		super(other);
 
 		jobId = other.jobId;
+		clusterName = other.clusterName;
 		if (other.jobInputs != null) {
 			jobInputs = new String[other.jobInputs.length];
 			for (int i = 0; i < other.jobInputs.length; ++i)
@@ -125,6 +128,13 @@ public class MRJobProfile extends MRExecProfile {
 	 * GETTERS & SETTERS
 	 * ***************************************************************
 	 */
+
+	/**
+	 * @return the cluster name where this profile was obtained
+	 */
+	public String getClusterName() {
+		return clusterName;
+	}
 
 	/**
 	 * @return the map-reduce job
@@ -176,6 +186,14 @@ public class MRJobProfile extends MRExecProfile {
 	}
 
 	/**
+	 * @param clusterName
+	 *            the cluster name to set
+	 */
+	public void setClusterName(String clusterName) {
+		this.clusterName = clusterName;
+	}
+
+	/**
 	 * @param jobInputs
 	 *            the job input paths to set
 	 */
@@ -222,6 +240,11 @@ public class MRJobProfile extends MRExecProfile {
 	 */
 	public void printProfile(PrintStream out, boolean printTaskProfiles) {
 		out.println("JOB PROFILE:\n\tID:\t" + jobId);
+
+		// Print out the cluster name
+		if (clusterName != null) {
+			out.println("\tCluster Name:\t" + clusterName);
+		}
 
 		// Print out the input paths
 		if (jobInputs != null) {

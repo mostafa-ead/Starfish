@@ -46,20 +46,12 @@ public class XMLProfileParser {
 	 * ***************************************************************
 	 */
 
-	// Constants
+	// Constants - XML tags
 	private static final String JOB_PROFILE = "job_profile";
 	private static final String MAP_PROFILE = "map_profile";
 	private static final String REDUCE_PROFILE = "reduce_profile";
-	private static final String YES = "yes";
-	private static final String ID = "id";
 	private static final String INPUTS = "inputs";
 	private static final String INPUT = "input";
-	private static final String INPUT_INDEX = "input_index";
-	private static final String KEY = "key";
-	private static final String VALUE = "value";
-	private static final String NUM_TASKS = "num_tasks";
-	private static final String NUM_MAPPERS = "num_mappers";
-	private static final String NUM_REDUCERS = "num_reducers";
 	private static final String COUNTERS = "counters";
 	private static final String STATS = "statistics";
 	private static final String FACTORS = "cost_factors";
@@ -68,6 +60,16 @@ public class XMLProfileParser {
 	private static final String STAT = "statistic";
 	private static final String FACTOR = "cost_factor";
 	private static final String TIMING = "timing";
+
+	// Constants - XML attributes
+	private static final String ID = "id";
+	private static final String CLUSTER_NAME = "cluster_name";
+	private static final String NUM_MAPPERS = "num_mappers";
+	private static final String NUM_REDUCERS = "num_reducers";
+	private static final String INPUT_INDEX = "input_index";
+	private static final String NUM_TASKS = "num_tasks";
+	private static final String KEY = "key";
+	private static final String VALUE = "value";
 
 	/* ***************************************************************
 	 * PUBLID METHODS
@@ -128,6 +130,11 @@ public class XMLProfileParser {
 				.getAttribute(NUM_MAPPERS)));
 		jobProfile.addCounter(MRCounter.REDUCE_TASKS, Long.parseLong(root
 				.getAttribute(NUM_REDUCERS)));
+
+		String clusterName = root.getAttribute(CLUSTER_NAME);
+		if (clusterName != null && !clusterName.equals("")) {
+			jobProfile.setClusterName(clusterName);
+		}
 
 		// Get the profile inputs
 		NodeList inputs = root.getElementsByTagName(INPUTS).item(0)
@@ -241,6 +248,9 @@ public class XMLProfileParser {
 				MRCounter.MAP_TASKS, 0l).toString());
 		job.setAttribute(NUM_REDUCERS, jobProfile.getCounter(
 				MRCounter.REDUCE_TASKS, 0l).toString());
+		if (jobProfile.getClusterName() != null) {
+			job.setAttribute(CLUSTER_NAME, jobProfile.getClusterName());
+		}
 
 		// Add the job inputs
 		Element inputs = doc.createElement(INPUTS);
@@ -273,7 +283,7 @@ public class XMLProfileParser {
 		try {
 			Transformer transformer = TransformerFactory.newInstance()
 					.newTransformer();
-			transformer.setOutputProperty(OutputKeys.INDENT, YES);
+			transformer.setOutputProperty(OutputKeys.INDENT, "yes");
 			transformer.transform(source, result);
 		} catch (TransformerConfigurationException e) {
 			e.printStackTrace();

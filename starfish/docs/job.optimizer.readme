@@ -9,7 +9,7 @@ The Profiler has been used (see profile.readme) to generate the job profile
 
 Setup
 -----
-Specify the global optimization options in bin/optimize-config.sh
+Specify the global optimization options in bin/config.sh
 
 
 Job Optimization on a live cluster (with actual input data)

@@ -203,8 +203,8 @@ public class RRSJobOptimizer extends JobOptimizer {
 			// Enumerate the full space
 			List<ParameterSpacePoint> points = space
 					.getSpacePointGrid(false, n);
-			LOG.info("Number of parameters: " + space.getNumParameters());
-			LOG.info("Number of settings: " + points.size());
+			LOG.debug("Number of parameters: " + space.getNumParameters());
+			LOG.debug("Number of settings: " + points.size());
 			return findBestParameterSpacePoint(whatifEngine, points, conf);
 		}
 
@@ -313,8 +313,8 @@ public class RRSJobOptimizer extends JobOptimizer {
 		} // End exploration
 
 		// Log some stats
-		LOG.info("Number of parameters: " + space.getNumParameters());
-		LOG.info("Number of settings: " + countWhatIf);
+		LOG.debug("Number of parameters: " + space.getNumParameters());
+		LOG.debug("Number of settings: " + countWhatIf);
 
 		return x_opt;
 	}

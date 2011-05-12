@@ -24,9 +24,9 @@ import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
 import edu.duke.starfish.profile.profileinfo.utils.XMLClusterParser;
 import edu.duke.starfish.profile.profiler.XMLProfileParser;
 import edu.duke.starfish.whatif.data.DataSetModel;
+import edu.duke.starfish.whatif.data.FixedInputSpecsDataSetModel;
 import edu.duke.starfish.whatif.data.MapInputSpecs;
 import edu.duke.starfish.whatif.data.RealAvgDataSetModel;
-import edu.duke.starfish.whatif.data.VirtualAvgDataSetModel;
 import edu.duke.starfish.whatif.data.XMLInputSpecsParser;
 import edu.duke.starfish.whatif.oracle.JobProfileOracle;
 import edu.duke.starfish.whatif.scheduler.BasicFIFOScheduler;
@@ -177,7 +177,7 @@ public class JobOptimizerDriver {
 		if (line.hasOption(INPUT)) {
 			List<MapInputSpecs> specs = XMLInputSpecsParser
 					.importMapInputSpecs(new File(line.getOptionValue(INPUT)));
-			dataModel = new VirtualAvgDataSetModel(specs);
+			dataModel = new FixedInputSpecsDataSetModel(specs);
 		} else {
 			dataModel = new RealAvgDataSetModel();
 		}

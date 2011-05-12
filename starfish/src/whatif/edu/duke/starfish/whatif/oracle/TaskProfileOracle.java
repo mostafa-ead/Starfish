@@ -1,6 +1,6 @@
 package edu.duke.starfish.whatif.oracle;
 
-import static edu.duke.starfish.whatif.Constants.*;
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.*;
 
 import org.apache.hadoop.conf.Configuration;
 
@@ -87,7 +87,7 @@ public abstract class TaskProfileOracle {
 							DEF_COST_CPU_COMBINE));
 		}
 
-		// Ensure we have compression costs
+		// Ensure we have compression costs and are not set to zero
 		if (conf.getBoolean(MR_COMPRESS_MAP_OUT, false)) {
 			virtualProf.addCostFactor(MRCostFactors.INTERM_COMPRESS_CPU_COST,
 					sourceProf.getCostFactor(
@@ -97,6 +97,17 @@ public abstract class TaskProfileOracle {
 					sourceProf.getCostFactor(
 							MRCostFactors.INTERM_UNCOMPRESS_CPU_COST,
 							DEF_COST_CPU_UNCOMPRESS));
+
+			if (virtualProf
+					.getCostFactor(MRCostFactors.INTERM_COMPRESS_CPU_COST) == 0d)
+				virtualProf.addCostFactor(
+						MRCostFactors.INTERM_COMPRESS_CPU_COST,
+						DEF_COST_CPU_COMPRESS);
+			if (virtualProf
+					.getCostFactor(MRCostFactors.INTERM_UNCOMPRESS_CPU_COST) == 0d)
+				virtualProf.addCostFactor(
+						MRCostFactors.INTERM_UNCOMPRESS_CPU_COST,
+						DEF_COST_CPU_UNCOMPRESS);
 		}
 	}
 

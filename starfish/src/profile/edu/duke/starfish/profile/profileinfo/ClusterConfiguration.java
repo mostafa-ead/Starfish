@@ -19,10 +19,18 @@ import edu.duke.starfish.profile.profileinfo.setup.MasterHostInfo;
 import edu.duke.starfish.profile.profileinfo.setup.RackInfo;
 import edu.duke.starfish.profile.profileinfo.setup.SlaveHostInfo;
 import edu.duke.starfish.profile.profileinfo.setup.TaskTrackerInfo;
+import edu.duke.starfish.profile.profileinfo.utils.ProfileUtils;
+import edu.duke.starfish.profile.profiler.Profiler;
 
 /**
  * Represents the entire cluster configuration i.e. the racks, the hosts, the
- * job tracker, and the task trackers
+ * job tracker, and the task trackers.
+ * 
+ * This class contains methods to generate a cluster programmatically, or to
+ * build it based on a live Hadoop cluster.
+ * 
+ * You can also build a cluster given a high-level description:
+ * {@link ClusterConfiguration#createClusterConfiguration(String, int, int, int, int, long)}
  * 
  * @author hero
  * 
@@ -33,6 +41,8 @@ public class ClusterConfiguration {
 	 * DATA MEMBERS
 	 * ***************************************************************
 	 */
+
+	private String name; // The cluster name
 
 	// The racks contain all the hosts and trackers
 	private Map<String, RackInfo> racks; // the racks
@@ -60,6 +70,7 @@ public class ClusterConfiguration {
 		this.slaveHosts = new HashMap<String, SlaveHostInfo>();
 		this.jobTracker = null;
 		this.taskTrackers = new HashMap<String, TaskTrackerInfo>();
+		this.name = null;
 	}
 
 	/**
@@ -83,6 +94,12 @@ public class ClusterConfiguration {
 		masterRack.setMasterHost(masterHost);
 		masterHost.setJobTracker(jobTracker);
 
+		// Set the cluster
+		name = conf.get(Profiler.PROFILER_CLUSTER_NAME);
+		if (name == null) {
+			name = masterHost.getName();
+		}
+
 		// Get the cluster information
 		JobClient client = null;
 		ClusterStatus cluster = null;
@@ -97,6 +114,7 @@ public class ClusterConfiguration {
 		// Calculate the map and reduce slots
 		int mapSlots = cluster.getMaxMapTasks() / cluster.getTaskTrackers();
 		int redSlots = cluster.getMaxReduceTasks() / cluster.getTaskTrackers();
+		long taskMem = ProfileUtils.getTaskMemory(conf);
 
 		// Create the task trackers information
 		int id = 1;
@@ -143,7 +161,7 @@ public class ClusterConfiguration {
 					rack.getName());
 			TaskTrackerInfo taskTracker = new TaskTrackerInfo(id, trackerName,
 					host.getName(), Integer.parseInt(trackerPieces[2]),
-					mapSlots, redSlots);
+					mapSlots, redSlots, taskMem);
 			slaveHosts.put(host.getName(), host);
 			taskTrackers.put(taskTracker.getName(), taskTracker);
 			rack.addSlaveHost(host);
@@ -161,6 +179,7 @@ public class ClusterConfiguration {
 	public ClusterConfiguration(ClusterConfiguration other) {
 		this();
 
+		this.name = other.name;
 		this.racks = new HashMap<String, RackInfo>(other.racks.size());
 
 		// The rack copy constructor copies all hosts (and trackers)
@@ -237,9 +256,9 @@ public class ClusterConfiguration {
 	 */
 	@Override
 	public String toString() {
-		return "ClusterConfiguration [Racks=" + getAllRackInfos()
-				+ ", jobTracker=" + getJobTrackerInfo() + ", taskTrackers="
-				+ getAllTaskTrackersInfos() + "]";
+		return "ClusterConfiguration [Name=" + name + " Racks="
+				+ getAllRackInfos() + ", jobTracker=" + getJobTrackerInfo()
+				+ ", taskTrackers=" + getAllTaskTrackersInfos() + "]";
 	}
 
 	/* ***************************************************************
@@ -604,6 +623,93 @@ public class ClusterConfiguration {
 	}
 
 	/**
+	 * Get the cluster's name (could be null)
+	 * 
+	 * @return the cluster's name
+	 */
+	public String getClusterName() {
+		return name;
+	}
+
+	/**
+	 * Get the total number of hosts in the cluster, including the master host
+	 * 
+	 * @return the number of hosts
+	 */
+	public int getNumberOfHosts() {
+		return taskTrackers.size() + (masterHost != null ? 1 : 0);
+	}
+
+	/**
+	 * Get the average number of map slots per host
+	 * 
+	 * @return the average number of map slots per host
+	 */
+	public int getAvgMapSlotsPerHost() {
+		return Math.round(getTotalMapSlots() / (float) taskTrackers.size());
+	}
+
+	/**
+	 * Get the average number of reduce slots per host
+	 * 
+	 * @return the average number of reduce slots per host
+	 */
+	public int getAvgReduceSlotsPerHost() {
+		return Math.round(getTotalReduceSlots() / (float) taskTrackers.size());
+	}
+
+	/**
+	 * Get the total number of map slots available in the cluster
+	 * 
+	 * @return the total number of map slots
+	 */
+	public int getTotalMapSlots() {
+		int numSlots = 0;
+		for (TaskTrackerInfo taskTracker : taskTrackers.values()) {
+			numSlots += taskTracker.getNumMapSlots();
+		}
+		return numSlots;
+	}
+
+	/**
+	 * Get the total number of reduce slots available in the cluster
+	 * 
+	 * @return the total number of reduce slots
+	 */
+	public int getTotalReduceSlots() {
+		int numSlots = 0;
+		for (TaskTrackerInfo taskTracker : taskTrackers.values()) {
+			numSlots += taskTracker.getNumReduceSlots();
+		}
+		return numSlots;
+	}
+
+	/**
+	 * Returns the (average) maximum memory available (in bytes) for the
+	 * execution of a single task
+	 * 
+	 * @return the maximum task memory in bytes
+	 */
+	public long getMaxTaskMemory() {
+		long maxMem = 0;
+		for (TaskTrackerInfo taskTracker : taskTrackers.values()) {
+			maxMem += taskTracker.getMaxTaskMemory();
+		}
+
+		return Math.round(maxMem / (double) taskTrackers.size());
+	}
+
+	/**
+	 * Set the cluster's name
+	 * 
+	 * @param name
+	 *            the cluster's name
+	 */
+	public void setClusterName(String name) {
+		this.name = name;
+	}
+
+	/**
 	 * Prints out the information about the cluster, including information for
 	 * the racks and the hosts.
 	 * 
@@ -611,6 +717,12 @@ public class ClusterConfiguration {
 	 *            The print stream to print at
 	 */
 	public void printClusterConfiguration(PrintStream out) {
+
+		// Print out the cluster name, if any
+		if (name != null) {
+			out.println("Cluster: " + name);
+			out.println();
+		}
 
 		// Print out information for the racks and hosts
 		for (RackInfo rack : racks.values()) {
@@ -665,6 +777,8 @@ public class ClusterConfiguration {
 	 * created for each slave host. A master host will be included in the first
 	 * rack, which will also host the job tracker.
 	 * 
+	 * @param name
+	 *            the cluster name
 	 * @param numRacks
 	 *            the number of racks of the cluster
 	 * @param numHostsPerRack
@@ -673,10 +787,13 @@ public class ClusterConfiguration {
 	 *            the number of map reduce slots per task
 	 * @param numReduceSlots
 	 *            the number of reduce reduce slots per task
+	 * @param maxTaskMemory
+	 *            the max memory per task in bytes
 	 * @return a cluster configuration
 	 */
-	public static ClusterConfiguration createClusterConfiguration(int numRacks,
-			int numHostsPerRack, int numMapSlots, int numReduceSlots) {
+	public static ClusterConfiguration createClusterConfiguration(String name,
+			int numRacks, int numHostsPerRack, int numMapSlots,
+			int numReduceSlots, long maxTaskMemory) {
 
 		// Set properties for number format
 		NumberFormat nf = NumberFormat.getIntegerInstance();
@@ -684,6 +801,7 @@ public class ClusterConfiguration {
 
 		// Create the cluster configuration
 		ClusterConfiguration cluster = new ClusterConfiguration();
+		cluster.setClusterName(name);
 
 		for (int rackId = 1; rackId <= numRacks; ++rackId) {
 			// Create the rack and add it to the cluster
@@ -713,7 +831,7 @@ public class ClusterConfiguration {
 						rack.getName());
 				TaskTrackerInfo tracker = new TaskTrackerInfo(id,
 						"task_tracker_" + host.getName(), host.getName(),
-						50060, numMapSlots, numReduceSlots);
+						50060, numMapSlots, numReduceSlots, maxTaskMemory);
 
 				// Add them to the cluster
 				cluster.addSlaveHostInfo(host);

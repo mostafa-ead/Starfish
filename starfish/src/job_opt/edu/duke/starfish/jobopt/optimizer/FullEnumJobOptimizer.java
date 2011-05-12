@@ -88,8 +88,8 @@ public class FullEnumJobOptimizer extends JobOptimizer {
 				numValuesPerParam);
 
 		// Log some stats
-		LOG.info("Number of parameters: " + space.getNumParameters());
-		LOG.info("Number of settings: " + points.size());
+		LOG.debug("Number of parameters: " + space.getNumParameters());
+		LOG.debug("Number of settings: " + points.size());
 
 		// Find the best configuration
 		ParameterSpacePoint bestPoint = findBestParameterSpacePoint(

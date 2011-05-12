@@ -1,7 +1,7 @@
-package edu.duke.starfish.whatif;
+package edu.duke.starfish.profile.profileinfo.utils;
 
 /**
- * Contains a set of constants to be used by the What-if Engine
+ * Contains various useful constants.
  * 
  * @author hero
  */
@@ -31,10 +31,35 @@ public class Constants {
 	public static final String MR_COMPRESS_OUT = "mapred.output.compress";
 
 	public static final String MR_INPUT_FORMAT_CLASS = "mapreduce.inputformat.class";
+	public static final String MR_SFIF = "org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat";
+	public static final String MR_TIF = "org.apache.hadoop.mapreduce.lib.input.TextInputFormat";
+	public static final String MR_TSIF = "org.apache.hadoop.examples.terasort.TeraInputFormat";
+	public static final String MR_TBIF = "org.apache.hadoop.hbase.mapreduce.TableInputFormat";
+	public static final String MR_SFTIF = "org.apache.hadoop.mapreduce.lib.input.StarfishTextInputFormat";
+	public static final String MR_KVTIF = "org.apache.hadoop.mapreduce.lib.input.KeyValueTextInputFormat";
+	public static final String MR_KVTPIF = "org.apache.hadoop.mapreduce.lib.input.KeyValueTextPairInputFormat";
+	public static final String MR_WFIF = "org.apache.hadoop.mapreduce.lib.input.WholeFileInputFormat";
+	public static final String MR_WFTPIF = "org.apache.hadoop.mapreduce.lib.input.WholeFileTextPairInputFormat";
+
+	public static final String MR_OUTPUT_FORMAT_CLASS = "mapreduce.outputformat.class";
+	public static final String MR_SFOF = "org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat";
+	public static final String MR_TOF = "org.apache.hadoop.mapreduce.lib.output.TextOutputFormat";
+	public static final String MR_TSOF = "org.apache.hadoop.examples.terasort.TeraOutputFormat";
+	public static final String MR_TBOF = "org.apache.hadoop.hbase.mapreduce.TableOutputFormat";
+	public static final String MR_SFTOF = "org.apache.hadoop.mapreduce.lib.output.StarfishTextOutputFormat";
+	
 	public static final String MR_INPUT_DIR = "mapred.input.dir";
 
+	public static final String MR_TASK_PROFILE = "mapred.task.profile";
+	public static final String MR_TASK_PROFILE_MAPS = "mapred.task.profile.maps";
+	public static final String MR_TASK_PROFILE_REDS = "mapred.task.profile.reduces";
+	public static final String MR_JOB_REUSE_JVM = "mapred.job.reuse.jvm.num.tasks";
+	public static final String MR_RED_PARALLEL_COPIES = "mapred.reduce.parallel.copies";
+	public static final String MR_MAP_SPECULATIVE_EXEC = "mapred.map.tasks.speculative.execution";
+	public static final String MR_RED_SPECULATIVE_EXEC = "mapred.reduce.tasks.speculative.execution";
+
 	// Default values for Hadoop parameters
-	public static final long DEF_TASK_MEM = 200l * 1024 * 1024;
+	public static final long DEF_TASK_MEM = 200l << 20;
 	public static final int DEF_MAX_MAP_TASKS = 2;
 	public static final int DEF_MAX_RED_TASKS = 2;
 
@@ -51,7 +76,7 @@ public class Constants {
 	public static final float DEF_RED_SLOWSTART_MAPS = 0.05f;
 
 	// Default values for Counters
-	public static final long DEF_SPLIT_SIZE = 64l * 1024 * 1024;
+	public static final long DEF_SPLIT_SIZE = 64l << 20;
 	public static final long DEF_MAX_UNIQUE_GROUPS = 1l;
 
 	// Default values for Statistics
@@ -59,7 +84,7 @@ public class Constants {
 	public static final double DEF_RED_PAIRS_PER_GROUP = 1d;
 	public static final double DEF_SEL_ONE = 1d;
 	public static final double DEF_COMPRESS_RATIO = 0.3d;
-	public static final double DEF_MEM = 10d * 1024 * 1024;
+	public static final double DEF_MEM = 10l << 20;
 	public static final double DEF_MEM_PER_REC = 100d;
 
 	// Default values for Cost Factors

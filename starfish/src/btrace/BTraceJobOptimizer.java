@@ -46,7 +46,7 @@ public class BTraceJobOptimizer {
 
 		// Set the output location
 		if (conf.get("starfish.job.optimizer.output") == null)
-			conf.set("starfish.job.optimizer.outputs",
+			conf.set("starfish.job.optimizer.output",
 					System.getProperty("starfish.job.optimizer.output"));		
 		
 		// Set the number of values per parameter (for full and smart_full optimizers)

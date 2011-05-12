@@ -210,6 +210,17 @@ public class MRTaskProfile extends MRExecProfile {
 	 */
 
 	/**
+	 * Check if the profile is empty, i.e., there are no counters, stats, costs,
+	 * or timings.
+	 * 
+	 * @return true if profile is empty
+	 */
+	@Override
+	public boolean isEmpty() {
+		return super.isEmpty() && (timings == null || timings.isEmpty());
+	}
+
+	/**
 	 * Clears the entire profile (timings, counters, statistics, and cost
 	 * factors)
 	 */

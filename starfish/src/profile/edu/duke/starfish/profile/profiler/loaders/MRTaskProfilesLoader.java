@@ -13,6 +13,7 @@ import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRMapProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRReduceProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCounter;
+import edu.duke.starfish.profile.profileinfo.utils.Constants;
 import edu.duke.starfish.profile.profiler.loaders.tasks.MRMapProfileLoader;
 import edu.duke.starfish.profile.profiler.loaders.tasks.MRReduceProfileLoader;
 
@@ -137,7 +138,7 @@ public class MRTaskProfilesLoader {
 
 		if (success) {
 			// Update the job profile
-			profile.setJobInputs(conf.getStrings("mapred.input.dir"));
+			profile.setJobInputs(conf.getStrings(Constants.MR_INPUT_DIR, "NOT_FILE_SPLIT"));
 			profile.updateProfile();
 
 			// Set the number of map and reduce tasks
@@ -145,6 +146,12 @@ public class MRTaskProfilesLoader {
 					.size());
 			profile.addCounter(MRCounter.REDUCE_TASKS, (long) mrJob
 					.getReduceTasks().size());
+
+			// Retain the cluster name from the past profile, if any
+			String clusterName = mrJob.getProfile().getClusterName();
+			if (clusterName != null) {
+				profile.setClusterName(clusterName);
+			}
 
 			// Set the job profile
 			mrJob.setProfile(profile);

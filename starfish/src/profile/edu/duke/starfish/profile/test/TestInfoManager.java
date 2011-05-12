@@ -240,7 +240,7 @@ public class TestInfoManager implements IMRInfoManager {
 						.getName());
 				TaskTrackerInfo tracker = new TaskTrackerInfo(id,
 						"task_tracker_" + host.getName(), host.getName(),
-						50060, numMapSlots, numReduceSlots);
+						50060, numMapSlots, numReduceSlots, 200l << 20);
 
 				// Add them to the cluster
 				cluster.addSlaveHostInfo(host);

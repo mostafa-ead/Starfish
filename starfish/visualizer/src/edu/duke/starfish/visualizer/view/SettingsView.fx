@@ -41,10 +41,11 @@ import edu.duke.starfish.profile.profileinfo.IMRInfoManager;
 import edu.duke.starfish.profile.profileinfo.execution.DataLocality;
 import edu.duke.starfish.profile.profileinfo.execution.jobs.MRJobInfo;
 import edu.duke.starfish.profile.profileinfo.ClusterConfiguration;
+import edu.duke.starfish.profile.profileinfo.utils.Constants.*;
+import edu.duke.starfish.profile.profileinfo.utils.ProfileUtils;
 import edu.duke.starfish.profile.profileinfo.utils.XMLClusterParser;
 import edu.duke.starfish.whatif.data.XMLInputSpecsParser;
 import edu.duke.starfish.whatif.data.MapInputSpecs;
-import edu.duke.starfish.whatif.Constants.*;
 import edu.duke.starfish.whatif.WhatIfUtils;
 import edu.duke.starfish.whatif.VirtualMRJobManager;
 import edu.duke.starfish.jobopt.OptimizedJobManager;
@@ -414,7 +415,7 @@ public class SettingsView extends AppView {
    				cluster.getAllTaskTrackersInfos().size(),
    				(tasktrackerlist.get(0) as TaskTrackerInfo).getNumMapSlots(),
    				(tasktrackerlist.get(0) as TaskTrackerInfo).getNumReduceSlots(),
-   				(WhatIfUtils.getTaskMemory(conf) / (1024*1024)),
+   				(ProfileUtils.getTaskMemory(conf) / (1024*1024)),
 		];
 	}
 	
@@ -456,7 +457,7 @@ public class SettingsView extends AppView {
 		conf.setBoolean(confParamKeys[confParamBoolValues[1]], confParamValues[confParamBoolValues[1]] as Boolean);
 		conf.setBoolean(STARFISH_USE_COMBINER, confParamValues[confParamBoolValues[2]] as Boolean);
 		
-		WhatIfUtils.setTaskMemory(conf, clusterValues[3] *1024*1024);
+		ProfileUtils.setTaskMemory(conf, clusterValues[3] * 1024 * 1024);
 	}
 	
 	
@@ -464,8 +465,11 @@ public class SettingsView extends AppView {
 	function saveClusterSettings(): Void {
 	    
         if (updateCluster) {
-        	cluster = ClusterConfiguration.createClusterConfiguration(1, 
-        				clusterValues[0], clusterValues[1], clusterValues[2]);
+        	cluster = ClusterConfiguration.createClusterConfiguration(
+        				cluster.getClusterName(), 1,
+        				clusterValues[0], clusterValues[1], clusterValues[2],
+						clusterValues[3] * 1024 * 1024);
+        	ProfileUtils.setTaskMemory(conf, clusterValues[3] * 1024 * 1024);
 			updateCluster = false;
         }
 	}

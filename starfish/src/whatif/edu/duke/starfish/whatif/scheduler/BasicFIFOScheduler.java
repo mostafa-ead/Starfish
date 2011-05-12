@@ -1,5 +1,8 @@
 package edu.duke.starfish.whatif.scheduler;
 
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_RED_SLOWSTART_MAPS;
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.DEF_RED_SLOWSTART_MAPS;
+
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -27,7 +30,6 @@ import edu.duke.starfish.profile.profileinfo.execution.profile.MRReduceProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCounter;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRTaskPhase;
 import edu.duke.starfish.profile.profileinfo.setup.TaskTrackerInfo;
-import edu.duke.starfish.whatif.Constants;
 
 /**
  * A basic FIFO scheduler that simulates the execution of a MapReduce on a
@@ -171,8 +173,7 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 		int numMapTasks = jobProfile.getCounter(MRCounter.MAP_TASKS).intValue();
 
 		int numMapsBeforeReducers = (int) Math.ceil((conf.getFloat(
-				Constants.MR_RED_SLOWSTART_MAPS,
-				Constants.DEF_RED_SLOWSTART_MAPS) * numMapTasks));
+				MR_RED_SLOWSTART_MAPS, DEF_RED_SLOWSTART_MAPS) * numMapTasks));
 		if (numMapsBeforeReducers == 0)
 			++numMapsBeforeReducers;
 		if (numMapsBeforeReducers < 0 || numMapsBeforeReducers > numMapTasks)
@@ -204,7 +205,8 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 			for (int i = 0; i < numRedTasks; ++i) {
 				TaskSlot redSlot = redSlots.poll();
 				MRReduceAttemptInfo redAttempt = scheduleReduceExecution(
-						redSlot, redProfile, redSlowStartTime, lastMapEndTime);
+						redSlot, redProfile, redSlowStartTime, lastMapEndTime,
+						numMapTasks);
 				redAttempt.setProfile(redProfile);
 				redSlot.addTaskAttempt(redAttempt);
 				redSlots.add(redSlot);
@@ -390,10 +392,13 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 	 *            the earliest time for reducers to start
 	 * @param mapEndTime
 	 *            the end time of the last mapper
+	 * @param numMappers
+	 *            the total number of map tasks
 	 * @return the reduce attempt
 	 */
 	private MRReduceAttemptInfo scheduleReduceExecution(TaskSlot taskSlot,
-			MRReduceProfile redProfile, Date redSlowStartTime, Date mapEndTime) {
+			MRReduceProfile redProfile, Date redSlowStartTime, Date mapEndTime,
+			int numMappers) {
 
 		// Calculate the start time
 		Date startTime;
@@ -404,13 +409,13 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 			startTime = redSlowStartTime;
 		startTime = new Date(startTime.getTime() + HALF_HEARTBEAT_DELAY);
 
-		// The reduce function will only start after all maps have completed
+		// The shuffle will complete only after all maps have completed
 		double shuffleTime = redProfile.getTiming(MRTaskPhase.SHUFFLE, 0d);
 		Date endShuffleTime;
 		if (taskSlot.getNumWaves() == 0
-				&& shuffleTime < mapEndTime.getTime()
-						- redSlowStartTime.getTime()) {
-			endShuffleTime = new Date(mapEndTime.getTime());
+				&& shuffleTime < mapEndTime.getTime() - startTime.getTime()) {
+			endShuffleTime = new Date(mapEndTime.getTime()
+					+ (long) (shuffleTime / numMappers));
 		} else {
 			endShuffleTime = new Date(startTime.getTime() + (long) shuffleTime);
 		}

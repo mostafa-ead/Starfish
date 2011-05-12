@@ -12,12 +12,12 @@
 
 # if no args specified, show usage
 if [ $# = 0 ]; then
-  echo "Usage: whatif mode profileFile jar jarFile [mainClass] [genericOptions] args..."
+  echo "Usage: $0 question profileFile jar jarFile [mainClass] [genericOptions] args..."
   echo ""
   echo "  mode        = job_time|details|profile|timeline|mappers|reducers"
   echo "  profileFile = the job profile XML file"
   echo ""
-  echo "Description of modes:"
+  echo "Descriptions of 'question':"
   echo "  job_time     Display the execution time of the predicted job"
   echo "  details      Display the statistics of the predicted job"
   echo "  profile      Display the predicted profile of the job"
@@ -25,40 +25,23 @@ if [ $# = 0 ]; then
   echo "  mappers      Display the mappers of the predicted job"
   echo "  reducers     Display the reducers of the predicted job"
   echo ""
-  echo "Generic options supported are:"
-  echo "  -conf <configuration file>  an application configuration file"
-  echo "  -D <property=value>         use value for given property"
-  echo "  -files <files>              comma separated files to be copied to cluster"
-  echo "  -libjars <jars>             comma separated jar files to include in classpath"
-  echo "  -archives <archives>        comma separated archives to unarchive on cluster"
-  echo ""
   exit 1
 fi
 
-# Get the build and bin directories
-current=`pwd`
-bin=`dirname "$0"`
-bin=`cd "$bin"; pwd`
-build=`cd "$bin/../"; pwd`
-cd $current;
-
-MASTER_BTRACE_DIR=$build/hadoop-btrace
-
-
-# Get and check the execution mode
-MODE=$1
+# Get and check the what-if question
+QUESTION=$1
 shift
-if [ "$MODE" != "job_time" ] && 
-   [ "$MODE" != "details" ] && 
-   [ "$MODE" != "profile" ] && 
-   [ "$MODE" != "timeline" ] && 
-   [ "$MODE" != "mappers" ] && 
-   [ "$MODE" != "reducers" ]; then
-  echo "ERROR: Unsupported mode: $MODE"
+if [ "$QUESTION" != "job_time" ] && 
+   [ "$QUESTION" != "details" ] && 
+   [ "$QUESTION" != "profile" ] && 
+   [ "$QUESTION" != "timeline" ] && 
+   [ "$QUESTION" != "mappers" ] && 
+   [ "$QUESTION" != "reducers" ]; then
+  echo "ERROR: Unsupported mode: $QUESTION"
   echo "       modes = job_time|details|profile|timeline|mappers|reducers"
   exit -1
 fi
-HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.whatif.mode=${MODE}"
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.whatif.mode=${QUESTION}"
 
 # Get the job profile file
 PROFILE_FILE=$1
@@ -70,12 +53,17 @@ fi
 HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.whatif.profile.file=${PROFILE_FILE}"
 
 
+# Perform common tasks like Load configurations and initializations
+bin=`dirname "$0"`
+. "$bin"/common.sh
+
+
 # Specify the Java agent
 HADOOP_OPTS="${HADOOP_OPTS} -javaagent:${MASTER_BTRACE_DIR}/btrace-agent.jar=dumpClasses=false,debug=false,unsafe=true,probeDescPath=.,noServer=true,stdout,script=${MASTER_BTRACE_DIR}/BTraceWhatIf.class"
 
 # Add the whatif jar to the classpath
 HADOOP_CLASSPATH_OLD=$HADOOP_CLASSPATH
-HADOOP_CLASSPATH=`ls $build/starfish-*-whatif.jar`
+HADOOP_CLASSPATH=`ls $BASE_DIR/starfish-*-whatif.jar`
 if [ "$HADOOP_CLASSPATH_OLD" != "" ]; then
   HADOOP_CLASSPATH=${HADOOP_CLASSPATH}:${HADOOP_CLASSPATH_OLD}
 fi

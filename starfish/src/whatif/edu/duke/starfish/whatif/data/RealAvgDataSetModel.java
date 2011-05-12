@@ -1,6 +1,6 @@
 package edu.duke.starfish.whatif.data;
 
-import static edu.duke.starfish.whatif.Constants.MR_INPUT_DIR;
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -175,7 +175,7 @@ public class RealAvgDataSetModel extends DataSetModel {
 			FileSplit fileSplit = (FileSplit) split;
 			Configuration conf = context.getConfiguration();
 
-			if (conf.get(INPUT_FORMAT, TIF).equals(SFIF)) {
+			if (conf.get(MR_INPUT_FORMAT_CLASS, MR_TIF).equals(MR_SFIF)) {
 				// SequenceFile split
 				Path path = fileSplit.getPath();
 				try {

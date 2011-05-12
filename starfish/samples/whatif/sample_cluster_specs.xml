@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Note: The attribute 'name' and 'num_racks' are optional -->
+<!-- Note: The attribute 'max_slot_memory' is expected in MB -->
+<cluster name="local">
+	<specs num_racks="2" 
+			hosts_per_rack="3" 
+			map_slots_per_host="3" 
+			reduce_slots_per_host="1" 
+			max_slot_memory="200" />
+</cluster>
+

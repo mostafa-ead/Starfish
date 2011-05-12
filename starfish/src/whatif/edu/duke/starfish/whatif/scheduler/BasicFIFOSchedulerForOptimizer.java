@@ -1,5 +1,8 @@
 package edu.duke.starfish.whatif.scheduler;
 
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_RED_SLOWSTART_MAPS;
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.DEF_RED_SLOWSTART_MAPS;
+
 import java.util.PriorityQueue;
 
 import org.apache.hadoop.conf.Configuration;
@@ -12,7 +15,6 @@ import edu.duke.starfish.profile.profileinfo.execution.profile.MRReduceProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCounter;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRTaskPhase;
 import edu.duke.starfish.profile.profileinfo.setup.TaskTrackerInfo;
-import edu.duke.starfish.whatif.Constants;
 
 /**
  * A basic FIFO scheduler that simulates the execution of a MapReduce on a
@@ -78,8 +80,7 @@ public class BasicFIFOSchedulerForOptimizer implements IWhatIfScheduler {
 		// Calculate the number of completed maps before reducers start
 		int numMapTasks = jobProfile.getCounter(MRCounter.MAP_TASKS).intValue();
 		int numMapsBeforeReducers = (int) Math.ceil((conf.getFloat(
-				Constants.MR_RED_SLOWSTART_MAPS,
-				Constants.DEF_RED_SLOWSTART_MAPS) * numMapTasks));
+				MR_RED_SLOWSTART_MAPS, DEF_RED_SLOWSTART_MAPS) * numMapTasks));
 		double reducerStartTime = 0d;
 
 		// Schedule all the map tasks

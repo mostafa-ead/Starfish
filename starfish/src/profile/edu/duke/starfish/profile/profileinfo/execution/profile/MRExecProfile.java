@@ -85,6 +85,30 @@ public abstract class MRExecProfile {
 		return costs;
 	}
 
+	/**
+	 * @param counters
+	 *            the counters to set
+	 */
+	public void setCounters(Map<MRCounter, Long> counters) {
+		this.counters = counters;
+	}
+
+	/**
+	 * @param stats
+	 *            the statistics to set
+	 */
+	public void setStatistics(Map<MRStatistics, Double> stats) {
+		this.stats = stats;
+	}
+
+	/**
+	 * @param costs
+	 *            the cost factors to set
+	 */
+	public void setCostFactors(Map<MRCostFactors, Double> costs) {
+		this.costs = costs;
+	}
+
 	/* ***************************************************************
 	 * PUBLIC METHODS
 	 * ***************************************************************
@@ -280,6 +304,18 @@ public abstract class MRExecProfile {
 			return defaultValue;
 		else
 			return costs.get(cost);
+	}
+
+	/**
+	 * Check if the profile is empty, i.e., there are no counters, stats, or
+	 * costs.
+	 * 
+	 * @return true if profile is empty
+	 */
+	public boolean isEmpty() {
+		return (counters == null || counters.isEmpty())
+				&& (stats == null || stats.isEmpty())
+				&& (costs == null || costs.isEmpty());
 	}
 
 	/**

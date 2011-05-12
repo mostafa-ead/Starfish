@@ -1,6 +1,6 @@
 package edu.duke.starfish.whatif.oracle;
 
-import static edu.duke.starfish.whatif.Constants.*;
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.*;
 
 import org.apache.hadoop.conf.Configuration;
 
@@ -9,7 +9,7 @@ import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCostFacto
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCounter;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRStatistics;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRTaskPhase;
-import edu.duke.starfish.whatif.WhatIfUtils;
+import edu.duke.starfish.profile.profileinfo.utils.ProfileUtils;
 import edu.duke.starfish.whatif.data.ReduceShuffleSpecs;
 
 /**
@@ -94,6 +94,13 @@ public class ReduceProfileOracle extends TaskProfileOracle {
 	 */
 	public MRReduceProfile whatif(Configuration conf,
 			ReduceShuffleSpecs shuffleSpecs) {
+
+		if (sourceProf.isEmpty()) {
+			throw new RuntimeException(
+					"Unable to process a what-if request. The source reduce profile "
+							+ sourceProf.getTaskId() + " is empty!");
+		}
+
 		this.virtualProf = new MRReduceProfile(getVirtualTaskId(sourceProf
 				.getTaskId()));
 		virtualProf.setNumTasks(shuffleSpecs.getNumReducers());
@@ -215,7 +222,7 @@ public class ReduceProfileOracle extends TaskProfileOracle {
 		double numSpilledRecs = 0d;
 
 		// The shuffled data are placed either in memory buffer or on disk
-		long taskMem = WhatIfUtils.getTaskMemory(conf);
+		long taskMem = ProfileUtils.getTaskMemory(conf);
 		double shuffleBufferSize = conf.getFloat(MR_SHUFFLE_IN_BUFF_PERC,
 				DEF_SHUFFLE_IN_BUFF_PERC)
 				* taskMem;

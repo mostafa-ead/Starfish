@@ -1,7 +1,7 @@
 package edu.duke.starfish.whatif.oracle;
 
-import static edu.duke.starfish.whatif.Constants.MR_INPUT_DIR;
-import static edu.duke.starfish.whatif.Constants.MR_RED_TASKS;
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_INPUT_DIR;
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_RED_TASKS;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -99,7 +99,8 @@ public class JobProfileOracle {
 		this.virtualProf = new MRJobProfile(VIRTUAL + sourceProf.getJobId());
 		this.conf = conf;
 
-		// Set the job inputs
+		// Set the cluster name and job inputs
+		virtualProf.setClusterName(sourceProf.getClusterName());
 		virtualProf.setJobInputs(StringUtils.split(conf.get(MR_INPUT_DIR, "")));
 
 		// Get the input specs

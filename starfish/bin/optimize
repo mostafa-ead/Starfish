@@ -9,13 +9,13 @@
 # settings.
 #
 # Author: Herodotos Herodotou
-# Date:   March 07, 2011
+# Date:   May 11, 2011
 ###################################################################
 
 
 # if no args specified, show usage
 if [ $# = 0 ]; then
-  echo "Usage: optimize mode profileFile jar jarFile [mainClass] [genericOptions] args..."
+  echo "Usage: $0 mode profileFile jar jarFile [mainClass] [genericOptions] args..."
   echo ""
   echo "  mode        = run|recommend"
   echo "  profileFile = the job profile XML file"
@@ -24,26 +24,10 @@ if [ $# = 0 ]; then
   echo "  run        Run a job with the optimized job configuration"
   echo "  recommend  Recommend a job configuration"
   echo ""
-  echo "Generic options supported are:"
-  echo "  -conf <configuration file>  an application configuration file"
-  echo "  -D <property=value>         use value for given property"
-  echo "  -files <files>              comma separated files to be copied to cluster"
-  echo "  -libjars <jars>             comma separated jar files to include in classpath"
-  echo "  -archives <archives>        comma separated archives to unarchive on cluster"
+  echo "Optimizer-related parameters are set in bin/config.sh"
   echo ""
-  echo "Profile-related parameters are set in optimize-config.sh"
   exit 1
 fi
-
-# Get the build and bin directories
-current=`pwd`
-bin=`dirname "$0"`
-bin=`cd "$bin"; pwd`
-build=`cd "$bin/../"; pwd`
-cd $current;
-
-MASTER_BTRACE_DIR=$build/hadoop-btrace
-
 
 # Get and check the execution mode
 MODE=$1
@@ -66,8 +50,10 @@ fi
 HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.job.optimizer.profile.file=${PROFILE_FILE}"
 
 
-# Get the user-defined parameters
-. "$bin"/optimize-config.sh
+# Perform common tasks like Load configurations and initializations
+bin=`dirname "$0"`
+. "$bin"/common.sh
+
 
 # Get the job optimizer to use
 if [ "$JOB_OPTIMIZER_TYPE" = "" ]; then
@@ -122,7 +108,7 @@ HADOOP_OPTS="${HADOOP_OPTS} -javaagent:${MASTER_BTRACE_DIR}/btrace-agent.jar=dum
 
 # Add the optimizer jar to the classpath
 HADOOP_CLASSPATH_OLD=$HADOOP_CLASSPATH
-HADOOP_CLASSPATH=`ls $build/starfish-*-job-optimizer.jar`
+HADOOP_CLASSPATH=`ls $BASE_DIR/starfish-*-job-optimizer.jar`
 if [ "$HADOOP_CLASSPATH_OLD" != "" ]; then
   HADOOP_CLASSPATH=${HADOOP_CLASSPATH}:${HADOOP_CLASSPATH_OLD}
 fi

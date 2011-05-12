@@ -26,6 +26,8 @@ import edu.duke.starfish.profile.profileinfo.execution.mrtaskattempts.MRReduceAt
 import edu.duke.starfish.profile.profiler.loaders.MRJobHistoryLoader;
 import edu.duke.starfish.profile.profiler.loaders.MRTaskProfilesLoader;
 
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.*;
+
 /**
  * This class provides static methods for enabling and performing MapReduce job
  * profiling.
@@ -41,6 +43,7 @@ public class Profiler {
 
 	// Public constants
 	public static final String BTRACE_PROFILE_DIR = "btrace.profile.dir";
+	public static final String PROFILER_CLUSTER_NAME = "starfish.profiler.cluster.name";
 	public static final String PROFILER_OUTPUT_DIR = "starfish.profiler.output.dir";
 	public static final String PROFILER_RETAIN_TASK_PROFS = "starfish.profiler.retain.task.profiles";
 	public static final String PROFILER_COLLECT_TRANSFERS = "starfish.profiler.collect.data.transfers";
@@ -54,6 +57,9 @@ public class Profiler {
 
 	private static final Pattern TRANSFERS_PATTERN = Pattern
 			.compile(".*(Shuffling|Read|Failed).*");
+
+	private static String OLD_MAPPER_CLASS = "mapred.mapper.class";
+	private static String OLD_REDUCER_CLASS = "mapred.reducer.class";
 
 	/* ***************************************************************
 	 * PUBLIC STATIC METHODS
@@ -145,26 +151,51 @@ public class Profiler {
 		}
 
 		// We only support the new Hadoop API
-		if (conf.getBoolean("mapred.mapper.new-api", false) == false) {
+		if (conf.get(OLD_MAPPER_CLASS) != null
+				|| conf.get(OLD_REDUCER_CLASS) != null) {
 			LOG.warn("Job profiling is only supported with the new API");
 			return false;
 		}
 
 		// Set the profiling parameters
-		conf.setBoolean("mapred.task.profile", true);
-		conf.set("mapred.task.profile.maps", "0-9999");
-		conf.set("mapred.task.profile.reduces", "0-9999");
-		conf.setInt("mapred.job.reuse.jvm.num.tasks", 1);
-		conf.setInt("min.num.spills.for.combine", 9999);
-		conf.setInt("mapred.reduce.parallel.copies", 1);
-		conf.setFloat("mapred.job.reduce.input.buffer.percent", 0f);
-		conf.setBoolean("mapred.map.tasks.speculative.execution", false);
-		conf.setBoolean("mapred.reduce.tasks.speculative.execution", false);
-		// conf.setBoolean("mapred.compress.map.output", true);
-		// conf.setBoolean("mapred.output.compress", true);
+		conf.setBoolean(MR_TASK_PROFILE, true);
+		conf.set(MR_TASK_PROFILE_MAPS, "0-9999");
+		conf.set(MR_TASK_PROFILE_REDS, "0-9999");
+		conf.setInt(MR_JOB_REUSE_JVM, 1);
+		conf.setInt(MR_NUM_SPILLS_COMBINE, 9999);
+		conf.setInt(MR_RED_PARALLEL_COPIES, 1);
+		conf.setFloat(MR_RED_IN_BUFF_PERC, 0f);
+		conf.setBoolean(MR_MAP_SPECULATIVE_EXEC, false);
+		conf.setBoolean(MR_RED_SPECULATIVE_EXEC, false);
 
 		LOG.info("Job profiling enabled");
 		return true;
+	}
+
+	/**
+	 * Gathers the job history files, task profiles, and data transfers. Also
+	 * creates the job profile.
+	 * 
+	 * See detailed comments at
+	 * {@link Profiler#gatherJobExecutionFiles(Job, String)}
+	 * 
+	 * @param job
+	 *            the Hadoop job
+	 * @param localDir
+	 *            the local directory to place the files at
+	 * @param retainTaskProfs
+	 *            flag to retain the task profiles
+	 * @param collectTransfers
+	 *            flag to collect the data transfers
+	 */
+	public static void gatherJobExecutionFiles(Job job, String localDir,
+			boolean retainTaskProfs, boolean collectTransfers) {
+
+		job.getConfiguration().setBoolean(Profiler.PROFILER_RETAIN_TASK_PROFS,
+				retainTaskProfs);
+		job.getConfiguration().setBoolean(Profiler.PROFILER_COLLECT_TRANSFERS,
+				collectTransfers);
+		Profiler.gatherJobExecutionFiles(job, localDir);
 	}
 
 	/**
@@ -210,7 +241,7 @@ public class Profiler {
 			gatherJobProfileFiles(job, taskProfDir);
 
 			// Export the job profile XML file
-			String jobId = buildJobIdentifier(job);
+			String jobId = getJobId(job);
 			File jobProfDir = new File(resultsDir, "job_profiles");
 			jobProfDir.mkdir();
 
@@ -406,14 +437,21 @@ public class Profiler {
 		Configuration conf = historyLoader.getHadoopConfiguration();
 
 		// Parse the profile files and get the job profile
-		MRTaskProfilesLoader profileLoader = new MRTaskProfilesLoader(mrJob, conf,
-				profilesDir.getAbsolutePath());
+		MRTaskProfilesLoader profileLoader = new MRTaskProfilesLoader(mrJob,
+				conf, profilesDir.getAbsolutePath());
 
 		// Export the job profile
 		if (profileLoader.loadExecutionProfile(mrJob)) {
+
+			// Get the cluster name, if any
+			String clusterName = conf.get(PROFILER_CLUSTER_NAME);
+			if (clusterName != null)
+				mrJob.getProfile().setClusterName(clusterName);
+
 			XMLProfileParser.exportJobProfile(mrJob.getProfile(), profileXML);
 		} else {
-			LOG.error("Unable to load the profile for " + mrJob.getExecId());
+			LOG.error("Unable to create the job profile for "
+					+ mrJob.getExecId());
 		}
 
 		return mrJob;
@@ -426,7 +464,7 @@ public class Profiler {
 	 *            the MapReduce job
 	 * @return the job identifier
 	 */
-	private static String buildJobIdentifier(Job job) {
+	public static String getJobId(Job job) {
 		String jar = job.getJar();
 
 		Matcher matcher = JOB_PATTERN.matcher(jar);
@@ -449,7 +487,7 @@ public class Profiler {
 	 */
 	private static File[] getTaskProfiles(Job job, File dir) {
 		// List all relevant files
-		final String jobId = buildJobIdentifier(job).substring(4);
+		final String jobId = getJobId(job).substring(4);
 		File[] files = dir.listFiles(new FileFilter() {
 			public boolean accept(File pathname) {
 				return pathname.isFile() && !pathname.isHidden()
