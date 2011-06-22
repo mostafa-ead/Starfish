@@ -1,5 +1,15 @@
 package edu.duke.starfish.profile.profiler;
 
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_JOB_REUSE_JVM;
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_MAP_SPECULATIVE_EXEC;
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_NUM_SPILLS_COMBINE;
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_RED_IN_BUFF_PERC;
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_RED_PARALLEL_COPIES;
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_RED_SPECULATIVE_EXEC;
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_TASK_PROFILE;
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_TASK_PROFILE_MAPS;
+import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_TASK_PROFILE_REDS;
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -18,6 +28,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.mapreduce.Job;
 
 import edu.duke.starfish.profile.profileinfo.execution.MRExecutionStatus;
@@ -25,8 +36,6 @@ import edu.duke.starfish.profile.profileinfo.execution.jobs.MRJobInfo;
 import edu.duke.starfish.profile.profileinfo.execution.mrtaskattempts.MRReduceAttemptInfo;
 import edu.duke.starfish.profile.profiler.loaders.MRJobHistoryLoader;
 import edu.duke.starfish.profile.profiler.loaders.MRTaskProfilesLoader;
-
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.*;
 
 /**
  * This class provides static methods for enabling and performing MapReduce job
@@ -296,26 +305,79 @@ public class Profiler {
 					+ historyDir.toString());
 		}
 
-		// Create the history path and get the history file paths
+		// Get the local Hadoop history directory
 		Configuration conf = job.getConfiguration();
-		Path output = new Path(conf.get("mapred.output.dir"));
-		Path history = new Path(output, "_logs/history");
+		String localHistory = conf
+				.get("hadoop.job.history.location", "file:///"
+						+ new File(System.getProperty("hadoop.log.dir"))
+								.getAbsolutePath() + File.separator + "history");
+		Path localHistoryDir = new Path(localHistory);
 
-		FileSystem fs = output.getFileSystem(conf);
-		if (!fs.exists(history)) {
-			throw new IOException("History directory " + history.toString()
-					+ "does not exist");
+		// Copy the history files
+		File[] localFiles = copyHistoryFiles(job, localHistoryDir, historyDir);
+		if (localFiles != null)
+			return localFiles;
+
+		// Get the HDFS Hadoop history directory
+		String outDir = conf.get("hadoop.job.history.user.location");
+		if (outDir == null)
+			outDir = conf.get("mapred.output.dir");
+
+		Path output = new Path(outDir);
+		Path hdfsHistoryDir = new Path(output, "_logs" + Path.SEPARATOR
+				+ "history");
+
+		// Copy the history files
+		localFiles = copyHistoryFiles(job, hdfsHistoryDir, historyDir);
+		if (localFiles != null)
+			return localFiles;
+
+		// Unable to copy the files
+		throw new IOException("Unable to find history files in directories "
+				+ localHistoryDir.toString() + " or "
+				+ hdfsHistoryDir.toString());
+	}
+
+	/**
+	 * Copy the history files from Hadoop (local or HDFS) to the local directory
+	 * 
+	 * @param job
+	 *            the Hadoop job
+	 * @param hadoopHistoryDir
+	 *            the Hadoop history directory to copy from
+	 * @param localHistoryDir
+	 *            the local history directory to copy to
+	 * @return the two copied files
+	 * @throws IOException
+	 */
+	private static File[] copyHistoryFiles(Job job, Path hadoopHistoryDir,
+			File localHistoryDir) throws IOException {
+
+		// Ensure the Hadoop history dir exists
+		Configuration conf = job.getConfiguration();
+		FileSystem fs = hadoopHistoryDir.getFileSystem(conf);
+		if (!fs.exists(hadoopHistoryDir)) {
+			return null;
 		}
-		Path[] jobFiles = FileUtil.stat2Paths(fs.listStatus(history));
+
+		// Get the two job files
+		final String jobId = getJobId(job);
+		Path[] jobFiles = FileUtil.stat2Paths(fs.listStatus(hadoopHistoryDir,
+				new PathFilter() {
+					@Override
+					public boolean accept(Path path) {
+						return path.getName().contains(jobId);
+					}
+				}));
+
 		if (jobFiles.length != 2) {
-			throw new IOException("Not a valid history directory "
-					+ history.toString());
+			return null;
 		}
 
 		// Copy the history files to the local directory
 		File[] localJobFiles = new File[2];
 		for (Path jobFile : jobFiles) {
-			File localJobFile = new File(historyDir, jobFile.getName());
+			File localJobFile = new File(localHistoryDir, jobFile.getName());
 			FileUtil.copy(fs, jobFile, localJobFile, false, conf);
 
 			if (localJobFile.getName().endsWith(".xml"))
