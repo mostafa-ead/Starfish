@@ -16,7 +16,9 @@
 	<!-- Classpath -->
 	<path id="tfidf.classpath">
 		<pathelement location="${bin.dir}" />
-		<pathelement location="${lib.dir}/hadoop-0.20.2-core.jar" />
+		<fileset dir="${lib.dir}">
+			<include name="**/*.jar" />
+		</fileset>
 	</path>
 
 	<!-- init command -->
@@ -40,7 +42,13 @@
 	<!-- Main build command -->
 	<target name="build" depends="init" description="Builds the entire project">
 		<echo message="${ant.project.name}: ${ant.file}" />
-		<javac debug="true" debuglevel="${debuglevel}" destdir="${bin.dir}" source="${source}" target="${target}">
+		<javac 	includeantruntime="false" 
+				debug="true" 
+				debuglevel="${debuglevel}" 
+				destdir="${bin.dir}" 
+				source="${source}" 
+				target="${target}"
+		>
 			<src path="${src.dir}" />
 			<classpath refid="tfidf.classpath" />
 		</javac>
@@ -60,8 +68,7 @@
     <target name="javadoc" description="Creates the javadoc documentation">
         <javadoc 
         	access="public" 
-        	author="true" 
-        	classpath="${lib.dir}/hadoop-0.20.2-core.jar" 
+        	author="true"
         	destdir="${doc.dir}" 
         	doctitle="${proj.title}" 
         	nodeprecated="false" 
@@ -74,7 +81,11 @@
         	sourcepath="${src.dir}" 
         	splitindex="true" 
         	use="true" 
-        	version="true"/>
+        	version="true"
+        >
+			<classpath refid="tfidf.classpath" />
+       	</javadoc>
+
     </target>
 
 	<!-- help command: Prints help information-->

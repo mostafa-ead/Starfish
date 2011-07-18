@@ -14,14 +14,17 @@ import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 
+import edu.duke.starfish.profile.profileinfo.ClusterConfiguration;
 import edu.duke.starfish.profile.profileinfo.execution.MRExecutionStatus;
 import edu.duke.starfish.profile.profileinfo.execution.jobs.MRJobInfo;
 import edu.duke.starfish.profile.profileinfo.execution.mrtaskattempts.MRMapAttemptInfo;
 import edu.duke.starfish.profile.profileinfo.execution.mrtaskattempts.MRReduceAttemptInfo;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
 import edu.duke.starfish.profile.profileinfo.metrics.DataTransfer;
-import edu.duke.starfish.profile.profileinfo.utils.ProfileUtils;
 import edu.duke.starfish.profile.profiler.loaders.SysStatsLoader;
+import edu.duke.starfish.profile.utils.GeneralUtils;
+import edu.duke.starfish.profile.utils.ProfileUtils;
+import edu.duke.starfish.profile.utils.XMLProfileParser;
 
 /**
  * This is the main profiler driver class. It provides a basic terminal UI for
@@ -29,33 +32,33 @@ import edu.duke.starfish.profile.profiler.loaders.SysStatsLoader;
  * 
  * <pre>
  * Usage:
- *  bin/hadoop jar starfish_profiler.jar &lt;parameters&gt;
+ *  bin/hadoop jar starfish-*-profiler.jar &lt;parameters&gt;
  * 
  * The profiler parameters must be one of:
- *   -mode list_all   -history &lt;dir&gt; [-ouput &lt;file&gt;]
- *   -mode list_stats -history &lt;dir&gt; [-ouput &lt;file&gt;]
+ *   -mode list_all   -results &lt;dir&gt; [-ouput &lt;file&gt;]
+ *   -mode list_stats -results &lt;dir&gt; [-ouput &lt;file&gt;]
  * 
- *   -mode details   -job &lt;job_id&gt; -history &lt;dir&gt; [-ouput &lt;file&gt;]
- *   -mode cluster   -job &lt;job_id&gt; -history &lt;dir&gt; [-ouput &lt;file&gt;]
- *   -mode timeline  -job &lt;job_id&gt; -history &lt;dir&gt; [-ouput &lt;file&gt;]
- *   -mode mappers   -job &lt;job_id&gt; -history &lt;dir&gt; [-ouput &lt;file&gt;]
- *   -mode reducers  -job &lt;job_id&gt; -history &lt;dir&gt; [-ouput &lt;file&gt;]
+ *   -mode details   -job &lt;job_id&gt; -results &lt;dir&gt; [-ouput &lt;file&gt;]
+ *   -mode cluster   -job &lt;job_id&gt; -results &lt;dir&gt; [-ouput &lt;file&gt;]
+ *   -mode timeline  -job &lt;job_id&gt; -results &lt;dir&gt; [-ouput &lt;file&gt;]
+ *   -mode mappers   -job &lt;job_id&gt; -results &lt;dir&gt; [-ouput &lt;file&gt;]
+ *   -mode reducers  -job &lt;job_id&gt; -results &lt;dir&gt; [-ouput &lt;file&gt;]
  * 
- *   -mode transfers_all -job &lt;job_id&gt; -history &lt;dir&gt; -transfers &lt;dir&gt; [-ouput &lt;file&gt;]
- *   -mode transfers_map -job &lt;job_id&gt; -history &lt;dir&gt; -transfers &lt;dir&gt; [-ouput &lt;file&gt;]
- *   -mode transfers_red -job &lt;job_id&gt; -history &lt;dir&gt; -transfers &lt;dir&gt; [-ouput &lt;file&gt;]
+ *   -mode transfers_all -job &lt;job_id&gt; -results &lt;dir&gt; [-ouput &lt;file&gt;]
+ *   -mode transfers_map -job &lt;job_id&gt; -results &lt;dir&gt; [-ouput &lt;file&gt;]
+ *   -mode transfers_red -job &lt;job_id&gt; -results &lt;dir&gt; [-ouput &lt;file&gt;]
  *  
- *   -mode profile   -job &lt;job_id&gt; -history &lt;dir&gt; -profiles &lt;dir&gt; [-ouput &lt;file&gt;]
- *   -mode profile_xml    -job &lt;job_id&gt; -history &lt;dir&gt; -profiles &lt;dir&gt; [-ouput &lt;file&gt;]
+ *   -mode profile     -job &lt;job_id&gt; -results &lt;dir&gt; [-ouput &lt;file&gt;]
+ *   -mode profile_xml -job &lt;job_id&gt; -results &lt;dir&gt; [-ouput &lt;file&gt;]
  *   
- *   -mode adjust    -profile1 &lt;file&gt; -profile2 &lt;file&gt; [-ouput &lt;file&gt;]
+ *   -mode adjust    -job1 &lt;job_id&gt; -job2 &lt;job_id&gt; -results &lt;dir&gt; [-ouput &lt;file&gt;]
  * 
  *   -mode cpustats  -monitor &lt;dir&gt; -node <node_name> 
- *     [-job &lt;job_id&gt; -history &lt;dir&gt;] [-output &lt;file&gt;]
+ *     [-job &lt;job_id&gt; -results &lt;dir&gt;] [-output &lt;file&gt;]
  *   -mode memstats  -monitor &lt;dir&gt; -node <node_name> 
- *     [-job &lt;job_id&gt; -history &lt;dir&gt;] [-output &lt;file&gt;]
+ *     [-job &lt;job_id&gt; -results &lt;dir&gt;] [-output &lt;file&gt;]
  *   -mode iostats   -monitor &lt;dir&gt; -node <node_name> 
- *     [-job &lt;job_id&gt; -history &lt;dir&gt;] [-output &lt;file&gt;]
+ *     [-job &lt;job_id&gt; -results &lt;dir&gt;] [-output &lt;file&gt;]
  * 
  * Description of execution modes:
  *   list_all      List all available jobs
@@ -76,18 +79,15 @@ import edu.duke.starfish.profile.profiler.loaders.SysStatsLoader;
  *   iostats       Display I/O stats of a node
  * 
  * Description of parameter flags:
- *   -mode <option>   The execution mode
- *   -job &lt;job_id&gt;    The job id of interest
- *   -history &lt;dir&gt;   The directory with the history files
- *   -profiles &lt;dir&gt;  The directory with the profile files (or userlogs)
- *   -transfers &lt;dir&gt; The directory with the transfer files (or userlogs)
- *   -monitor &lt;dir&gt;   The directory with the monitoring files
- *   -node <node_name> The node name of interest (for monitor info)
- *   -profile1 &lt;file&gt;  The xml profile file (obtained without compression)
- *   -profile2 &lt;file&gt;  The xml profile file (obtained with compression)
- *   -output &lt;file&gt;   An optional file to write the output to
- *   -help            Display detailed instructions
- * 
+ *   -mode &lt;option&gt;    The execution mode
+ *   -job &lt;job_id&gt;     The job id of interest
+ *   -results &lt;dir&gt;    The results directory generated from profiling
+ *   -monitor &lt;dir&gt;    The directory with the monitoring files
+ *   -node &lt;node_name$gt; The node name of interest (for monitor info)
+ *   -job1 &lt;job_id&gt;    The job id for job run without compression
+ *   -job2 &lt;job_id&gt;    The job id for job run with compression
+ *   -output &lt;file&gt;    An optional file to write the output to
+ *   -help                   Display detailed instructions
  * 
  * </pre>
  * 
@@ -103,13 +103,11 @@ public class ProfilerDriver {
 	// Main parsing options
 	private static String MODE = "mode";
 	private static String JOB = "job";
-	private static String HISTORY = "history";
-	private static String PROFILES = "profiles";
-	private static String TRANSFERS = "transfers";
+	private static String RESULTS = "results";
 	private static String MONITOR = "monitor";
 	private static String NODE = "node";
-	private static String PROFILE1 = "profile1";
-	private static String PROFILE2 = "profile2";
+	private static String JOB1 = "job1";
+	private static String JOB2 = "job2";
 	private static String OUTPUT = "output";
 	private static String HELP = "help";
 
@@ -177,12 +175,8 @@ public class ProfilerDriver {
 
 		// Create and initialize the logs manager
 		MRJobLogsManager manager = new MRJobLogsManager();
-		if (line.hasOption(HISTORY))
-			manager.setHistoryDir(line.getOptionValue(HISTORY));
-		if (line.hasOption(PROFILES))
-			manager.setTaskProfilesDir(line.getOptionValue(PROFILES));
-		if (line.hasOption(TRANSFERS))
-			manager.setTransfersDir(line.getOptionValue(TRANSFERS));
+		if (line.hasOption(RESULTS))
+			manager.setResultsDir(line.getOptionValue(RESULTS));
 
 		// Get the job, if any
 		MRJobInfo mrJob = null;
@@ -214,22 +208,54 @@ public class ProfilerDriver {
 			if (manager.loadTaskDetailsForMRJob(mrJob)) {
 				ProfileUtils.printMRJobDetails(out, mrJob);
 			} else {
-				System.err.println("Unable to laod the task details");
+				System.err.println("Unable to load the task details for job "
+						+ mrJob.getExecId());
 				System.exit(-1);
 			}
 
 		} else if (mode.equals(CLUSTER)) {
 			// Print the cluster configuration
-			manager.getClusterConfiguration(mrJob.getExecId())
-					.printClusterConfiguration(out);
+			ClusterConfiguration cluster = manager
+					.getClusterConfiguration(mrJob.getExecId());
+			if (cluster != null) {
+				cluster.printClusterConfiguration(out);
+			} else {
+				System.err.println("Unable to load the cluster info for job "
+						+ mrJob.getExecId());
+				System.exit(-1);
+			}
 
 		} else if (mode.equals(TRANSFERS_ALL) || mode.equals(TRANSFERS_MAP)
 				|| mode.equals(TRANSFERS_RED)) {
-			// Print the data transfers
-			if (manager.loadDataTransfersForMRJob(mrJob)) {
+
+			// Load the task details first
+			if (!manager.loadTaskDetailsForMRJob(mrJob)) {
+				System.err.println("Unable to load the task details for job "
+						+ mrJob.getExecId());
+				System.exit(-1);
+			}
+
+			if (mrJob.isMapOnly()) {
+				// Map-only job => no transfers
+				out.println("Job " + mrJob.getExecId()
+						+ " is map-only, no data transfers occurred!");
+
+			} else if (manager.loadDataTransfersForMRJob(mrJob)) {
+				// Print the data transfers
 				printDataTransfers(out, mrJob, mode);
+
+			} else if (manager.loadProfilesForMRJob(mrJob)
+					&& ProfileUtils.generateDataTransfers(mrJob, manager
+							.getHadoopConfiguration(mrJob.getExecId()))) {
+				// Print the estimated data transfers
+				System.out.println("NOTE: Transfers estimated based "
+						+ "on profile information!");
+				printDataTransfers(out, mrJob, mode);
+
 			} else {
-				System.err.println("Unable to load the data transfers");
+				// No data transfers found
+				System.err.println("Unable to load the data transfers for job "
+						+ mrJob.getExecId());
 				System.exit(-1);
 			}
 
@@ -238,7 +264,8 @@ public class ProfilerDriver {
 			if (manager.loadProfilesForMRJob(mrJob)) {
 				mrJob.getProfile().printProfile(out, false);
 			} else {
-				System.err.println("Unable to load the profile");
+				System.err.println("Unable to load the profile for job "
+						+ mrJob.getExecId());
 				System.exit(-1);
 			}
 
@@ -247,26 +274,61 @@ public class ProfilerDriver {
 			if (manager.loadProfilesForMRJob(mrJob)) {
 				XMLProfileParser.exportJobProfile(mrJob.getProfile(), out);
 			} else {
-				System.err.println("Unable to load the profile");
+				System.err.println("Unable to load the profile for job "
+						+ mrJob.getExecId());
 				System.exit(-1);
 			}
 
 		} else if (mode.equals(ADJUST)) {
+
+			// Get profile with uncompression
+			MRJobProfile prof1 = null;
+			if (line.hasOption(JOB1)) {
+				String jobId = line.getOptionValue(JOB1);
+				prof1 = manager.getMRJobProfile(jobId);
+				if (prof1 == null) {
+					System.err.println("Unable to find a job with id " + jobId);
+					System.exit(-1);
+				}
+			}
+
+			// Get profile with compression
+			MRJobProfile prof2 = null;
+			if (line.hasOption(JOB2)) {
+				String jobId = line.getOptionValue(JOB2);
+				prof2 = manager.getMRJobProfile(jobId);
+				if (prof2 == null) {
+					System.err.println("Unable to find a job with id " + jobId);
+					System.exit(-1);
+				}
+			}
+
 			// Adjust the profile
-			MRJobProfile prof1 = XMLProfileParser.importJobProfile(new File(
-					line.getOptionValue(PROFILE1)));
-			MRJobProfile prof2 = XMLProfileParser.importJobProfile(new File(
-					line.getOptionValue(PROFILE2)));
 			MRJobProfile profResult = ProfileUtils
 					.adjustProfilesForCompression(prof1, prof2);
-			XMLProfileParser.exportJobProfile(profResult, out);
+
+			// Export the adjusted profiles
+			File jobProfDir = new File(line.getOptionValue(RESULTS),
+					"job_profiles");
+			File profile1XML = new File(jobProfDir, "adj_profile_"
+					+ line.getOptionValue(JOB1).substring(4) + ".xml");
+			File profile2XML = new File(jobProfDir, "adj_profile_"
+					+ line.getOptionValue(JOB2).substring(4) + ".xml");
+
+			XMLProfileParser.exportJobProfile(profResult, profile1XML);
+			XMLProfileParser.exportJobProfile(profResult, profile2XML);
+
+			out.println("Completed adjusting profiles for "
+					+ line.getOptionValue(JOB1) + " and "
+					+ line.getOptionValue(JOB2));
 
 		} else if (mode.equals(MAPPERS)) {
 			// Print the map timings
 			if (manager.loadTaskDetailsForMRJob(mrJob)) {
 				ProfileUtils.printMRMapInfo(out, mrJob.getMapTasks());
 			} else {
-				System.err.println("Unable to load the map timings");
+				System.err.println("Unable to load the map timings for job "
+						+ mrJob.getExecId());
 				System.exit(-1);
 			}
 
@@ -275,7 +337,8 @@ public class ProfilerDriver {
 			if (manager.loadTaskDetailsForMRJob(mrJob)) {
 				ProfileUtils.printMRReduceInfo(out, mrJob.getReduceTasks());
 			} else {
-				System.err.println("Unable to load the reduce timings");
+				System.err.println("Unable to load the reduce timings for job "
+						+ mrJob.getExecId());
 				System.exit(-1);
 			}
 
@@ -284,7 +347,8 @@ public class ProfilerDriver {
 			if (manager.loadTaskDetailsForMRJob(mrJob)) {
 				ProfileUtils.printMRJobTimeline(out, mrJob);
 			} else {
-				System.err.println("Unable to load the task timeline");
+				System.err.println("Unable to load the task timeline for job "
+						+ mrJob.getExecId());
 				System.exit(-1);
 			}
 
@@ -364,20 +428,14 @@ public class ProfilerDriver {
 		Option jobOption = OptionBuilder.withArgName("job_id").hasArg()
 				.withDescription("The job id of interest").create(JOB);
 
-		Option historyOption = OptionBuilder.withArgName("dir").hasArg()
-				.withDescription("The directory with the history files")
-				.create(HISTORY);
-		Option profilesOption = OptionBuilder.withArgName("dir").hasArg()
-				.withDescription("The directory with the profile files")
-				.create(PROFILES);
-		Option transfersOption = OptionBuilder.withArgName("dir").hasArg()
-				.withDescription("The directory with the transfer files")
-				.create(TRANSFERS);
+		Option resultsOption = OptionBuilder.withArgName("dir").hasArg()
+				.withDescription("The results directory from profiling")
+				.create(RESULTS);
 
-		Option profile1Option = OptionBuilder.withArgName("file").hasArg()
-				.withDescription("The XML profile file").create(PROFILE1);
-		Option profile2Option = OptionBuilder.withArgName("file").hasArg()
-				.withDescription("The XML profile file").create(PROFILE2);
+		Option job1Option = OptionBuilder.withArgName("job_id").hasArg()
+				.withDescription("The job id without compression").create(JOB1);
+		Option job2Option = OptionBuilder.withArgName("job_id").hasArg()
+				.withDescription("The job id with compression").create(JOB2);
 
 		Option monitorOption = OptionBuilder.withArgName("dir").hasArg()
 				.withDescription("The directoryt with the monitoring files")
@@ -393,13 +451,11 @@ public class ProfilerDriver {
 		Options opts = new Options();
 		opts.addOption(modeOption);
 		opts.addOption(jobOption);
-		opts.addOption(historyOption);
-		opts.addOption(profilesOption);
-		opts.addOption(transfersOption);
+		opts.addOption(resultsOption);
 		opts.addOption(monitorOption);
 		opts.addOption(nodeOption);
-		opts.addOption(profile1Option);
-		opts.addOption(profile2Option);
+		opts.addOption(job1Option);
+		opts.addOption(job2Option);
 		opts.addOption(outputOption);
 		opts.addOption(helpOption);
 
@@ -491,7 +547,7 @@ public class ProfilerDriver {
 		sb.append(TAB);
 		sb.append(mrJob.getEndTime());
 		sb.append(TAB);
-		sb.append(ProfileUtils.getFormattedDuration(mrJob.getDuration()));
+		sb.append(GeneralUtils.getFormattedDuration(mrJob.getDuration()));
 		sb.append(TAB);
 		sb.append(mrJob.getStatus());
 
@@ -549,86 +605,58 @@ public class ProfilerDriver {
 
 		String mode = line.getOptionValue(MODE);
 
-		// -mode {list_all|list_stats} -history <dir> [-ouput <file>]
+		// -mode {list_all|list_stats} -results <dir> [-ouput <file>]
 		if (mode.equals(LIST_ALL) || mode.equals(LIST_STATS)) {
-			if (!line.hasOption(HISTORY)) {
-				System.err.println("The 'history' option is required");
+			if (!line.hasOption(RESULTS)) {
+				System.err.println("The 'results' option is required");
 				printUsage(System.err);
 				System.exit(-1);
 			}
 		}
 
 		// -mode {details|cluster|timeline|mappers|reducers}
-		// -job <job_id> -history <dir> [-ouput <file>]
+		// -job <job_id> -results <dir> [-ouput <file>]
+		// -mode {transfers_all|transfers_map|transfers_red}
+		// -job <job_id> -results <dir> [-ouput <file>]
+		// -mode {profile|profile_xml} -job <job_id> -results <dir>
+		// [-ouput <file>]
 		else if (mode.equals(DETAILS) || mode.equals(CLUSTER)
 				|| mode.equals(TIMELINE) || mode.equals(MAPPERS)
-				|| mode.equals(REDUCERS)) {
+				|| mode.equals(REDUCERS) || mode.equals(TRANSFERS_ALL)
+				|| mode.equals(TRANSFERS_MAP) || mode.equals(TRANSFERS_RED)
+				|| mode.equals(PROFILE) || mode.equals(PROFILE_XML)) {
 			if (!line.hasOption(JOB)) {
 				System.err.println("The 'job' option is required");
 				printUsage(System.err);
 				System.exit(-1);
 			}
-			if (!line.hasOption(HISTORY)) {
-				System.err.println("The 'history' option is required");
+			if (!line.hasOption(RESULTS)) {
+				System.err.println("The 'results' option is required");
 				printUsage(System.err);
 				System.exit(-1);
 			}
 		}
-		// -mode {transfers_all|transfers_map|transfers_red}
-		// -job <job_id> -history <dir> -transfers <dir> [-ouput <file>]
-		else if (mode.equals(TRANSFERS_ALL) || mode.equals(TRANSFERS_MAP)
-				|| mode.equals(TRANSFERS_RED)) {
-			if (!line.hasOption(JOB)) {
-				System.err.println("The 'job' option is required");
-				printUsage(System.err);
-				System.exit(-1);
-			}
-			if (!line.hasOption(HISTORY)) {
-				System.err.println("The 'history' option is required");
-				printUsage(System.err);
-				System.exit(-1);
-			}
-			if (!line.hasOption(TRANSFERS)) {
-				System.err.println("The 'transfers' option is required");
-				printUsage(System.err);
-				System.exit(-1);
-			}
-		}
-		// -mode {profile|profile_xml} -job <job_id> -history <dir>
-		// -profiles <dir> [-ouput <file>]
-		else if (mode.equals(PROFILE) || mode.equals(PROFILE_XML)) {
-			if (!line.hasOption(JOB)) {
-				System.err.println("The 'job' option is required");
-				printUsage(System.err);
-				System.exit(-1);
-			}
-			if (!line.hasOption(HISTORY)) {
-				System.err.println("The 'history' option is required");
-				printUsage(System.err);
-				System.exit(-1);
-			}
-			if (!line.hasOption(PROFILES)) {
-				System.err.println("The 'profiles' option is required");
-				printUsage(System.err);
-				System.exit(-1);
-			}
-		}
-		// -mode adjust -profile1 <file> -profile2 <file> [-ouput <file>]
+		// -mode adjust -job1 <job_id> -job2 <job_id> -results <dir> [-ouput <file>]
 		else if (mode.equals(ADJUST)) {
-			if (!line.hasOption(PROFILE1)) {
-				System.err.println("The 'profile1' option is required");
+			if (!line.hasOption(JOB1)) {
+				System.err.println("The 'job1' option is required");
 				printUsage(System.err);
 				System.exit(-1);
 			}
-			if (!line.hasOption(PROFILE2)) {
-				System.err.println("The 'profile2' option is required");
+			if (!line.hasOption(JOB2)) {
+				System.err.println("The 'job2' option is required");
+				printUsage(System.err);
+				System.exit(-1);
+			}
+			if (!line.hasOption(RESULTS)) {
+				System.err.println("The 'results' option is required");
 				printUsage(System.err);
 				System.exit(-1);
 			}
 		}
 		// -mode {cpustats|memstats|iostats}
 		// -monitor <dir> -node <node_name>
-		// [-job <job_id> -history <dir>] [-output <file>]
+		// [-job <job_id> -results <dir>] [-output <file>]
 		else if (mode.equals(CPU_STATS) || mode.equals(MEM_STATS)
 				|| mode.equals(IO_STATS)) {
 			if (!line.hasOption(MONITOR)) {
@@ -788,25 +816,23 @@ public class ProfilerDriver {
 		out.println("The profiler parameters must be "
 				+ "one of the following six cases:");
 		out.println("  -mode {list_all|list_stats}");
-		out.println("    -history <dir> [-ouput <file>]");
+		out.println("    -results <dir> [-ouput <file>]");
 		out.println();
 		out.println("  -mode {details|cluster|timeline" + "|mappers|reducers}");
-		out.println("    -job <job_id> -history <dir> [-ouput <file>]");
+		out.println("    -job <job_id> -results <dir> [-ouput <file>]");
 		out.println();
 		out.println("  -mode {transfers_all|transfers_map|transfers_red}");
-		out.println("    -job <job_id> -history <dir> "
-				+ "-transfers <dir> [-ouput <file>]");
+		out.println("    -job <job_id> -results <dir> [-ouput <file>]");
 		out.println();
 		out.println("  -mode {profile|profile_xml}");
-		out.println("    -job <job_id> -history <dir> "
-				+ "-profiles <dir> [-ouput <file>]");
+		out.println("    -job <job_id> -results <dir> [-ouput <file>]");
 		out.println();
 		out.println("  -mode adjust");
-		out.println("    -profile1 <file> -profile2 <file> [-ouput <file>]");
+		out.println("    -job1 <job_id> -job2 <job_id> -results <dir> [-ouput <file>]");
 		out.println();
 		out.println("  -mode {cpustats|memstats|iostats}");
 		out.println("    -monitor <dir> -node <node_name> ");
-		out.println("    [-job <job_id> -history <dir>] [-output <file>]");
+		out.println("    [-job <job_id> -results <dir>] [-output <file>]");
 		out.println();
 		out.println("  -help");
 		out.println();
@@ -824,38 +850,35 @@ public class ProfilerDriver {
 		out.println(" bin/hadoop jar starfish_profiler.jar <parameters>");
 		out.println();
 		out.println("The profiler parameters must be one of:");
-		out.println("  -mode list_all   -history <dir> [-ouput <file>]");
-		out.println("  -mode list_stats -history <dir> [-ouput <file>]");
+		out.println("  -mode list_all   -results <dir> [-ouput <file>]");
+		out.println("  -mode list_stats -results <dir> [-ouput <file>]");
 		out.println();
-		out.println("  -mode details    "
-				+ "-job <job_id> -history <dir> [-ouput <file>]");
-		out.println("  -mode cluster    "
-				+ "-job <job_id> -history <dir> [-ouput <file>]");
-		out.println("  -mode timeline   "
-				+ "-job <job_id> -history <dir> [-ouput <file>]");
-		out.println("  -mode mappers    "
-				+ "-job <job_id> -history <dir> [-ouput <file>]");
-		out.println("  -mode reducers   "
-				+ "-job <job_id> -history <dir> [-ouput <file>]");
+		out.println("  -mode details     "
+				+ "-job <job_id> -results <dir> [-ouput <file>]");
+		out.println("  -mode cluster     "
+				+ "-job <job_id> -results <dir> [-ouput <file>]");
+		out.println("  -mode timeline    "
+				+ "-job <job_id> -results <dir> [-ouput <file>]");
+		out.println("  -mode mappers     "
+				+ "-job <job_id> -results <dir> [-ouput <file>]");
+		out.println("  -mode reducers    "
+				+ "-job <job_id> -results <dir> [-ouput <file>]");
+		out.println("  -mode transfers   "
+				+ "-job <job_id> -results <dir> [-ouput <file>]");
+		out.println("  -mode profile     "
+				+ "-job <job_id> -results <dir> [-ouput <file>]");
+		out.println("  -mode profile_xml "
+				+ "-job <job_id> -results <dir> [-ouput <file>]");
 		out.println();
-		out.println("  -mode transfers -job <job_id> -history <dir> "
-				+ "-transfers <dir> [-ouput <file>]");
-		out.println();
-		out.println("  -mode profile   -job <job_id> -history <dir> "
-				+ "-profiles <dir> [-ouput <file>]");
-		out.println("  -mode profile_xml    -job <job_id> -history <dir> "
-				+ "-profiles <dir> [-ouput <file>]");
-		out.println();
-		out.println("  -mode adjust   -profile1 <file> "
-				+ "-profile2 <file> [-ouput <file>]");
-		out.println();
+		out.println("  -mode adjust  "
+				+ "-job1 <job_id> -job2 <job_id> -results <dir> [-ouput <file>]");
 		out.println();
 		out.println("  -mode cpustats  -monitor <dir> -node <node_name> ");
-		out.println("     [-job <job_id> -history <dir>] [-output <file>]");
+		out.println("     [-job <job_id> -results <dir>] [-output <file>]");
 		out.println("  -mode memstats  -monitor <dir> -node <node_name> ");
-		out.println("     [-job <job_id> -history <dir>] [-output <file>]");
+		out.println("     [-job <job_id> -results <dir>] [-output <file>]");
 		out.println("  -mode iostats   -monitor <dir> -node <node_name> ");
-		out.println("     [-job <job_id> -history <dir>] [-output <file>]");
+		out.println("     [-job <job_id> -results <dir>] [-output <file>]");
 		out.println();
 		out.println("Description of execution modes:");
 		out.println("  list_all     List all available jobs");
@@ -871,8 +894,8 @@ public class ProfilerDriver {
 		out.println("  transfers_red "
 				+ "Display aggregated data transfers to reducers");
 		out.println("  profile      Display the profile of a job");
-		out
-				.println("  profile_xml  Display the profile of a job in XML format");
+		out.println("  profile_xml  "
+				+ "Display the profile of a job in XML format");
 		out.println("  adjust       Adjusts compression costs for two jobs");
 		out.println("  cpustats     Display CPU stats of a node");
 		out.println("  memstats     Display Memory stats of a node");
@@ -881,17 +904,14 @@ public class ProfilerDriver {
 		out.println("Description of parameter flags:");
 		out.println("  -mode <option>    The execution mode");
 		out.println("  -job <job_id>     The job id of interest");
-		out.println("  -history <dir>    The directory with the history files");
-		out.println("  -profiles <dir>   "
-				+ "The directory with the profile files (or userlogs)");
-		out.println("  -transfers <dir>  "
-				+ "The directory with the transfer files (or userlogs)");
+		out.println("  -results <dir>    "
+				+ "The results directory generated from profiling");
 		out.println("  -monitor <dir>    "
 				+ "The directory with the monitoring files");
-		out.println("  -profile1 <file>  "
-				+ "The xml profile file (obtained without compression)");
-		out.println("  -profile2 <file>  "
-				+ "The xml profile file (obtained with compression)");
+		out.println("  -job1 <file>      "
+				+ "The job id for job run without compression");
+		out.println("  -job2 <file>      "
+				+ "The job id for job run with compression");
 		out.println("  -node <node_name> "
 				+ "The node name of interest (for monitor info)");
 		out.println("  -output <file>    "

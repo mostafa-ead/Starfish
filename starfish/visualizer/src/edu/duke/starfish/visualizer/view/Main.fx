@@ -27,7 +27,6 @@ import edu.duke.starfish.profile.profileinfo.execution.jobs.JobInfo;
 import edu.duke.starfish.profile.profileinfo.IMRInfoManager;
 import edu.duke.starfish.profile.profileinfo.execution.jobs.MRJobInfo;
 import edu.duke.starfish.profile.profiler.MRJobLogsManager;
-import edu.duke.starfish.profile.test.TestInfoManager;
 
 import edu.duke.starfish.whatif.VirtualMRJobManager;
 import edu.duke.starfish.jobopt.OptimizedJobManager;

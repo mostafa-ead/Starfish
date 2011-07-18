@@ -5,9 +5,12 @@ import static com.sun.btrace.BTraceUtils.timeNanos;
 import static com.sun.btrace.BTraceUtils.used;
 import static com.sun.btrace.BTraceUtils.heapUsage;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.lib.input.FileSplit;
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
 
 import com.sun.btrace.AnyType;
 import com.sun.btrace.annotations.BTrace;
@@ -31,11 +34,14 @@ import com.sun.btrace.annotations.Where;
  * class cannot communicate with each other (i.e. common profiling cannot
  * be used by the map- or reduce-related parts). Also, writing to the same
  * file from multiple classes is not thread-safe.
- *  
+ * 
+ * Supported Hadoop versions: v0.20.2 and v0.20.203.0
+ * Unless otherwise noted, the methods instrument both versions
+ * 
  * @author hero
  */
 @BTrace
-public class HadoopBTrace {
+public class BTraceTaskProfile {
 	
     /*************************************************************************/
 	/***************************** TASK COMMON *******************************/
@@ -46,6 +52,7 @@ public class HadoopBTrace {
 	 * **********************************************************/
 	@TLS private static long taskRunStartTime = 0l;
 
+	// Hadoop Version: v0.20.2
 	@OnMethod(clazz = "org.apache.hadoop.mapred.Child", 
 			method = "main", 
 			location = @Location(where=Where.BEFORE, value = Kind.CALL, clazz="/.*/", method="run"))
@@ -53,11 +60,20 @@ public class HadoopBTrace {
 		taskRunStartTime = timeNanos();
 	}
 
+	// Hadoop Version: v0.20.2
 	@OnMethod(clazz = "org.apache.hadoop.mapred.Child", 
 			method = "main", 
 			location = @Location(where=Where.AFTER, value = Kind.CALL, clazz="/.*/", method="run"))
 	public static void onChild_main_After_Call_run() {
 		println(strcat("TASK\tTOTAL_RUN\t", str(timeNanos() - taskRunStartTime)));
+	}
+
+	// Hadoop Version: v0.20.203.0
+	@OnMethod(clazz = "org.apache.hadoop.security.UserGroupInformation", 
+			method = "doAs", 
+			location = @Location(value = Kind.RETURN))
+	public static void onUserGroupInformation_doAs_return(@Duration long duration) {
+		println(strcat("TASK\tTOTAL_RUN\t", str(duration)));
 	}
 
 	/* ***********************************************************
@@ -179,7 +195,7 @@ public class HadoopBTrace {
 	public static void onMapper_run_Entry(Mapper<?,?,?,?>.Context context) {
 		InputSplit split = context.getInputSplit();
 		if (split instanceof FileSplit) {
-			println("MAP\t" + ((FileSplit) split).getPath() + "\t0");
+			println(strcat(strcat("MAP\t", ((FileSplit) split).getPath().toString()), "\t0"));
 		} else {
 			println("MAP\tNOT_FILE_SPLIT\t0");
 		}
@@ -266,6 +282,19 @@ public class HadoopBTrace {
 	public static void onNewOutputCollector_write_After_Call_getPartition() {
 		mapPartitionDuration += timeNanos() - mapPartitionStartTime;
 	}
+	
+	@OnMethod(clazz = "org.apache.hadoop.mapred.MapTask$NewOutputCollector", 
+			method = "close",
+			location = @Location(value = Kind.RETURN))
+	public static void onNewOutputCollector_close_return() {
+		// These should all be zero but output to be consistent
+		// with output from map-only jobs
+		println(strcat("MAP\tWRITE\t", str(mapDirectOutputDuration)));
+		println(strcat("MAP\tCOMPRESS\t", str(compressDuration)));
+		println(strcat("MAP\tKEY_BYTE_COUNT\t", str(mapOutputKByteCount)));
+		println(strcat("MAP\tVALUE_BYTE_COUNT\t", str(mapOutputVByteCount)));
+	}
+
 
 	@OnMethod(clazz = "org.apache.hadoop.mapred.MapTask$MapOutputBuffer", 
 			method = "collect", 
@@ -307,6 +336,12 @@ public class HadoopBTrace {
 			location = @Location(value = Kind.RETURN))
 	public static void onNewDirectOutputCollector_close_return(@Duration long duration) {
 		mapDirectOutputDuration = duration;
+		
+		// Print direct output info
+		println(strcat("MAP\tWRITE\t", str(mapDirectOutputDuration)));
+		println(strcat("MAP\tCOMPRESS\t", str(compressDuration)));
+		println(strcat("MAP\tKEY_BYTE_COUNT\t", str(mapOutputKByteCount)));
+		println(strcat("MAP\tVALUE_BYTE_COUNT\t", str(mapOutputVByteCount)));
 	}
 	
 	/* ***********************************************************
@@ -416,7 +451,6 @@ public class HadoopBTrace {
 	/* ***********************************************************
 	 * DONE WITH MAPPER EXECUTION
 	 * **********************************************************/
-	@TLS private static boolean onMapper = false;
 
 	@OnMethod(clazz = "org.apache.hadoop.mapreduce.Mapper", 
 			method = "run", 
@@ -435,24 +469,12 @@ public class HadoopBTrace {
 		println(strcat("MAP\tSERIALIZE_OUTPUT\t", str(mapBufferCollectDuration)));
 		println(strcat("MAP\tMAP_MEM\t", str(used(heapUsage()))));
 
-		onMapper = true;
 		uncompressDuration = 0l;
 		compressDuration = 0l;
 	}
 	
-	@OnMethod(clazz = "org.apache.hadoop.mapred.Task", 
-			method = "done", 
-			location = @Location(value = Kind.ENTRY))
-	public static void onMapTask_runNewMapper_return() {
-		if (onMapper) {
-			println(strcat("MAP\tWRITE\t", str(mapDirectOutputDuration)));
-			println(strcat("MAP\tCOMPRESS\t", str(compressDuration)));
-			println(strcat("MAP\tKEY_BYTE_COUNT\t", str(mapOutputKByteCount)));
-			println(strcat("MAP\tVALUE_BYTE_COUNT\t", str(mapOutputVByteCount)));
-		}
-	}
-	
-    /*************************************************************************/
+
+	/*************************************************************************/
 	/******************************* REDUCER *********************************/
 	/*************************************************************************/
 	
@@ -498,6 +520,74 @@ public class HadoopBTrace {
 		uncompressDuration = 0l;
 	}
 
+	
+	/* ***********************************************************
+	 * ENABLE COLLECTION OF DATA TRANSFERS (Hadoop v0.20.203.0)
+	 * **********************************************************/
+
+	@TLS private static int toggleDebugShuffling = 0;
+	@TLS private static int toggleDebugRead = 1;
+	private static boolean collectTransfers = false;
+	
+	// Hadoop v0.20.203.0
+	@OnMethod(clazz = "org.apache.hadoop.mapred.ReduceTask$ReduceCopier", 
+			method = "configureClasspath", 
+			location = @Location(value = Kind.ENTRY))
+	public static void onReduceCopier_configureClasspath_return(AnyType conf) {
+		collectTransfers = ((Configuration) conf).getBoolean("starfish.profiler.collect.data.transfers", false);
+	}
+	
+	// Hadoop v0.20.203.0
+	@OnMethod(clazz = "org.apache.hadoop.mapred.ReduceTask$ReduceCopier$MapOutputCopier", 
+			  method="getMapOutput", 
+			  location=@Location(where=Where.BEFORE, value=Kind.CALL, 
+					  			 clazz="org.apache.commons.logging.Log", method="isDebugEnabled"))
+	public static void onReducerCopier_getMapOutput_Before_Call_isDebugEnabled() {
+		if (collectTransfers) {
+			if (toggleDebugShuffling == 1) {
+				Logger.getLogger("org.apache.hadoop.mapred.ReduceTask").setLevel(Level.DEBUG);
+			}
+			toggleDebugShuffling = 1 - toggleDebugShuffling;
+		}
+	}
+
+	// Hadoop v0.20.203.0
+	@OnMethod(clazz = "org.apache.hadoop.mapred.ReduceTask$ReduceCopier$MapOutputCopier", 
+			  method="getMapOutput", 
+			  location=@Location(where=Where.AFTER, value=Kind.CALL, 
+					  			 clazz="org.apache.commons.logging.Log", method="debug"))
+	public static void onReducerCopier_getMapOutput_After_Call_debug() {
+		if (collectTransfers) {
+			Logger.getLogger("org.apache.hadoop.mapred.ReduceTask").setLevel(Level.INFO);
+		}
+	}
+
+	// Hadoop v0.20.203.0
+	@OnMethod(clazz = "org.apache.hadoop.mapred.ReduceTask$ReduceCopier$MapOutputCopier", 
+			  method="shuffleInMemory", 
+			  location=@Location(where=Where.BEFORE, value=Kind.CALL, 
+					  			 clazz="org.apache.commons.logging.Log", method="isDebugEnabled"))
+	public static void onReducerCopier_shuffleInMemory_Before_Call_isDebugEnabled() {
+		if (collectTransfers) {
+			if (toggleDebugRead == 1) {
+				Logger.getLogger("org.apache.hadoop.mapred.ReduceTask").setLevel(Level.DEBUG);
+			}
+			toggleDebugRead = 1 - toggleDebugRead;
+		}
+	}
+
+	// Hadoop v0.20.203.0
+	@OnMethod(clazz = "org.apache.hadoop.mapred.ReduceTask$ReduceCopier$MapOutputCopier", 
+			  method="shuffleInMemory", 
+			  location=@Location(where=Where.AFTER, value=Kind.CALL, 
+					  			 clazz="org.apache.commons.logging.Log", method="debug"))
+	public static void onReducerCopier_shuffleInMemory_After_Call_debug() {
+		if (collectTransfers) {
+			Logger.getLogger("org.apache.hadoop.mapred.ReduceTask").setLevel(Level.INFO);
+		}
+	}
+	
+	
 	/* ***********************************************************
 	 * SORT/MERGE DURING SHUFFLING
 	 * **********************************************************/
@@ -691,6 +781,19 @@ public class HadoopBTrace {
 		}
 	}
 
+	// Hadoop Version: v0.20.203.0
+	@OnMethod(clazz = "org.apache.hadoop.mapred.ReduceTask$NewTrackingRecordWriter", 
+			method = "close", 
+			location = @Location(value = Kind.RETURN))
+	public static void onNewTrackingRecordWriter_close_return(@Duration long duration) {
+		if (onReducer) {
+			println(strcat("REDUCE\tWRITE\t", str(duration)));
+			println(strcat("REDUCE\tCOMPRESS\t", str(compressDuration)));
+			compressDuration = 0l;
+		}
+	}
+
+	// Hadoop Version: v0.20.2
 	@OnMethod(clazz = "org.apache.hadoop.mapred.ReduceTask", 
 			method = "runNewReducer", 
 			location = @Location(where=Where.BEFORE, value = Kind.CALL, clazz="/.*/", method="close"))
@@ -699,6 +802,7 @@ public class HadoopBTrace {
 			reduceWriterCloseStartTime = timeNanos();
 	}
 
+	// Hadoop Version: v0.20.2
 	@OnMethod(clazz = "org.apache.hadoop.mapred.ReduceTask", 
 			method = "runNewReducer", 
 			location = @Location(where=Where.AFTER, value = Kind.CALL, clazz="/.*/", method="close"))

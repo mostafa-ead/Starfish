@@ -4,7 +4,7 @@ import java.io.File;
 
 import edu.duke.starfish.profile.profileinfo.execution.jobs.MRJobInfo;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
-import edu.duke.starfish.profile.profiler.XMLProfileParser;
+import edu.duke.starfish.profile.utils.XMLProfileParser;
 
 /**
  * This class is responsible for parsing the XML job profile file for a job and

@@ -26,7 +26,7 @@ import edu.duke.starfish.profile.profileinfo.IMRInfoManager;
 import edu.duke.starfish.profile.profileinfo.execution.MRExecutionStatus;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCounter;
 import edu.duke.starfish.profile.profileinfo.execution.jobs.MRJobInfo;
-import edu.duke.starfish.profile.profileinfo.utils.ProfileUtils;
+import edu.duke.starfish.profile.utils.GeneralUtils;
 import edu.duke.starfish.visualizer.model.Histogram;
 import edu.duke.starfish.visualizer.view.custom.BorderGroup;
 import edu.duke.starfish.visualizer.view.custom.ToolTip;
@@ -332,19 +332,19 @@ public class DataSkewView extends AppView {
 	  	var info: String;
 	  	if (type == 0) {
 	  	    info = 	"Map tasks: \n    {numTasks}\n \n"
-	  	    		"Total input size: \n    {ProfileUtils.getFormattedSize(totalSize)}";
+	  	    		"Total input size: \n    {GeneralUtils.getFormattedSize(totalSize)}";
 	  	}
 	  	else if (type == 1) {
 	  	    info = 	"Map tasks: \n    {numTasks}\n \n"
-	  	    		"Total output size: \n    {ProfileUtils.getFormattedSize(totalSize)}";
+	  	    		"Total output size: \n    {GeneralUtils.getFormattedSize(totalSize)}";
 	  	}
 	  	else if (type == 2) {
 	  	    info = 	"Reduce tasks: \n    {numTasks}\n \n"
-	  	    		"Total input size: \n    {ProfileUtils.getFormattedSize(totalSize)}";
+	  	    		"Total input size: \n    {GeneralUtils.getFormattedSize(totalSize)}";
 	  	}
 	  	else {
 	  	    info = 	"Reduce tasks: \n    {numTasks}\n \n"
-	  	    		"Total output size: \n    {ProfileUtils.getFormattedSize(totalSize)}";
+	  	    		"Total output size: \n    {GeneralUtils.getFormattedSize(totalSize)}";
 	  	}
 	  	
 	  	borderInfo = BorderGroup {
@@ -372,40 +372,45 @@ public class DataSkewView extends AppView {
 	        layoutX: bind buttonsX
 	        layoutY: bind buttonsY
 	        spacing: 15
-	        content : [
-	        Button {
-              	text : "Map Input"
-              	font : COMMON_FONT_14
-                layoutInfo: LayoutInfo {
-					width: buttonWidth
-                }
-              	action : function() : Void {
-	            	createHistogramChart(0);
-    	        }
-	           onMouseEntered : function(e : MouseEvent) : Void {
-	               this.scene.cursor = Cursor.HAND;
-	           }
-	           onMouseExited : function(e : MouseEvent) : Void {
-	               this.scene.cursor = Cursor.DEFAULT;
-           }
-	        },
-	        Button {
-              	text : "Map Output"
-              	font : COMMON_FONT_14
-                layoutInfo: LayoutInfo {
-					width: buttonWidth
-                }
-              	action : function() : Void {
-               		createHistogramChart(1);
-              	}
-	           onMouseEntered : function(e : MouseEvent) : Void {
-	               this.scene.cursor = Cursor.HAND;
-	           }
-	           onMouseExited : function(e : MouseEvent) : Void {
-	               this.scene.cursor = Cursor.DEFAULT;
-	           }
-	        },
-	        Button {
+	        content : []
+	    };
+	    
+	    insert Button {
+            text : "Map Input"
+            font : COMMON_FONT_14
+            layoutInfo: LayoutInfo {
+				width: buttonWidth
+            }
+            action : function() : Void {
+	          	createHistogramChart(0);
+    	    }
+	        onMouseEntered : function(e : MouseEvent) : Void {
+	            this.scene.cursor = Cursor.HAND;
+	        }
+	        onMouseExited : function(e : MouseEvent) : Void {
+	            this.scene.cursor = Cursor.DEFAULT;
+            }
+	     } into buttons.content;
+	     
+	     insert Button {
+             text : "Map Output"
+             font : COMMON_FONT_14
+             layoutInfo: LayoutInfo {
+				width: buttonWidth
+             }
+             action : function() : Void {
+             	createHistogramChart(1);
+             }
+	         onMouseEntered : function(e : MouseEvent) : Void {
+	            this.scene.cursor = Cursor.HAND;
+	         }
+	         onMouseExited : function(e : MouseEvent) : Void {
+	            this.scene.cursor = Cursor.DEFAULT;
+	         }
+	      } into buttons.content;
+	      
+	     if (not job.isMapOnly()) {
+			insert Button {
               	text : "Reduce Input"
               	font : COMMON_FONT_14
                 layoutInfo: LayoutInfo {
@@ -414,14 +419,15 @@ public class DataSkewView extends AppView {
               	action : function() : Void {
               		createHistogramChart(2);
                	}
-	           onMouseEntered : function(e : MouseEvent) : Void {
-	               this.scene.cursor = Cursor.HAND;
-	           }
-	           onMouseExited : function(e : MouseEvent) : Void {
+	            onMouseEntered : function(e : MouseEvent) : Void {
+	                this.scene.cursor = Cursor.HAND;
+	            }
+	            onMouseExited : function(e : MouseEvent) : Void {
 	               this.scene.cursor = Cursor.DEFAULT;
-	           }
-	        },
-	        Button {
+	            }
+	        } into buttons.content;
+	      
+	        insert Button {
               	text : "Reduce Output"
               	font : COMMON_FONT_14
                 layoutInfo: LayoutInfo {
@@ -430,15 +436,14 @@ public class DataSkewView extends AppView {
               	action : function() : Void {
 					createHistogramChart(3);
               	}
-	           onMouseEntered : function(e : MouseEvent) : Void {
+	            onMouseEntered : function(e : MouseEvent) : Void {
 	               this.scene.cursor = Cursor.HAND;
-	           }
-	           onMouseExited : function(e : MouseEvent) : Void {
+	            }
+	            onMouseExited : function(e : MouseEvent) : Void {
 	               this.scene.cursor = Cursor.DEFAULT;
-	           }
-	        }
-	        ]
-	    };
+	            }
+	        } into buttons.content;
+	     }
 	}
 	
     /*

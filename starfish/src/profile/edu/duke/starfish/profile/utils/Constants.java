@@ -1,4 +1,4 @@
-package edu.duke.starfish.profile.profileinfo.utils;
+package edu.duke.starfish.profile.utils;
 
 /**
  * Contains various useful constants.
@@ -7,7 +7,8 @@ package edu.duke.starfish.profile.profileinfo.utils;
  */
 public class Constants {
 
-	// Constants for Hadoop parameters
+	// Constants for Hadoop MapReduce parameters
+	public static final String MR_JAR = "mapred.jar";
 	public static final String MR_JAVA_OPTS = "mapred.child.java.opts";
 	public static final String MR_MAX_MAP_TASKS = "mapred.tasktracker.map.tasks.max";
 	public static final String MR_MAX_RED_TASKS = "mapred.tasktracker.reduce.tasks.max";
@@ -47,8 +48,9 @@ public class Constants {
 	public static final String MR_TSOF = "org.apache.hadoop.examples.terasort.TeraOutputFormat";
 	public static final String MR_TBOF = "org.apache.hadoop.hbase.mapreduce.TableOutputFormat";
 	public static final String MR_SFTOF = "org.apache.hadoop.mapreduce.lib.output.StarfishTextOutputFormat";
-	
+
 	public static final String MR_INPUT_DIR = "mapred.input.dir";
+	public static final String MR_OUTPUT_DIR = "mapred.output.dir";
 
 	public static final String MR_TASK_PROFILE = "mapred.task.profile";
 	public static final String MR_TASK_PROFILE_MAPS = "mapred.task.profile.maps";
@@ -57,6 +59,24 @@ public class Constants {
 	public static final String MR_RED_PARALLEL_COPIES = "mapred.reduce.parallel.copies";
 	public static final String MR_MAP_SPECULATIVE_EXEC = "mapred.map.tasks.speculative.execution";
 	public static final String MR_RED_SPECULATIVE_EXEC = "mapred.reduce.tasks.speculative.execution";
+
+	// Constants for Hadoop parameters
+	public static final String HADOOP_LOG_DIR = "hadoop.log.dir";
+	public static final String HADOOP_LOCAL_JOB_HISTORY = "hadoop.job.history.location";
+	public static final String HADOOP_HDFS_JOB_HISTORY = "hadoop.job.history.user.location";
+	public static final String HADOOP_COMPLETED_HISTORY = "mapred.job.tracker.history.completed.location";
+	
+	// Constants for Pig Parameters
+	public static final String PIG_INPUT_DIRS = "pig.input.dirs";
+	public static final String PIG_MAP_OUT_DIRS = "pig.map.output.dirs";
+	public static final String PIG_RED_OUT_DIRS = "pig.reduce.output.dirs";
+	public static final String PIG_MAPRED_OUT_DIRS = "pig.mapred.output.dir";
+
+	public static final String PIG_TEMP_DIR = "pig.temp.dir";
+	public static final String PIG_TEMP_COMPRESSION = "pig.tmpfilecompression";
+
+	public static final String PIG_PIF = "org.apache.pig.backend.hadoop.executionengine.mapReduceLayer.PigInputFormat";
+	public static final String PIG_POF = "org.apache.pig.backend.hadoop.executionengine.mapReduceLayer.PigOutputFormat";
 
 	// Default values for Hadoop parameters
 	public static final long DEF_TASK_MEM = 200l << 20;

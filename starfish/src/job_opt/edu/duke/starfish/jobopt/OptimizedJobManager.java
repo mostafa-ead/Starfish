@@ -7,7 +7,6 @@ import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 
 import edu.duke.starfish.jobopt.optimizer.JobOptimizer;
-import edu.duke.starfish.jobopt.optimizer.SmartRRSJobOptimizer;
 import edu.duke.starfish.profile.profileinfo.ClusterConfiguration;
 import edu.duke.starfish.profile.profileinfo.IMRInfoManager;
 import edu.duke.starfish.profile.profileinfo.execution.jobs.MRJobInfo;
@@ -15,13 +14,11 @@ import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
 import edu.duke.starfish.profile.profileinfo.metrics.Metric;
 import edu.duke.starfish.profile.profileinfo.metrics.MetricType;
 import edu.duke.starfish.profile.profileinfo.setup.HostInfo;
-import edu.duke.starfish.whatif.WhatIfEngine;
+import edu.duke.starfish.profile.utils.ProfileUtils;
 import edu.duke.starfish.whatif.WhatIfUtils;
 import edu.duke.starfish.whatif.data.DataSetModel;
 import edu.duke.starfish.whatif.data.FixedInputSpecsDataSetModel;
 import edu.duke.starfish.whatif.data.MapInputSpecs;
-import edu.duke.starfish.whatif.oracle.JobProfileOracle;
-import edu.duke.starfish.whatif.scheduler.BasicFIFOScheduler;
 
 /**
  * A manager for optimized MapReduce jobs. Currently, this manager can only
@@ -264,7 +261,7 @@ public class OptimizedJobManager implements IMRInfoManager {
 		boolean success = true;
 		if (updateTransfers) {
 			// Need to generate the new data transfers
-			success = WhatIfUtils.generateDataTransfers(job, conf);
+			success = ProfileUtils.generateDataTransfers(job, conf);
 			updateTransfers = false;
 		}
 
@@ -278,17 +275,14 @@ public class OptimizedJobManager implements IMRInfoManager {
 	 */
 	private void processOptimization() {
 
-		// Create the necessary parameters for the Optimizer
-		JobProfileOracle jobOracle = new JobProfileOracle(sourceProfile);
+		// Create the data model with fixed data specifications
 		DataSetModel dataModel = new FixedInputSpecsDataSetModel(specs);
-		BasicFIFOScheduler scheduler = new BasicFIFOScheduler();
 
 		// Optimize job
-		JobOptimizer optimizer = new SmartRRSJobOptimizer(jobOracle, dataModel,
-				cluster, scheduler);
-		conf = optimizer.findBestConfiguration(conf, true);
-		WhatIfEngine whatifEngine = new WhatIfEngine(jobOracle, dataModel,
-				scheduler, cluster, conf);
-		job = whatifEngine.whatIfJobConfGetJobInfo(conf);
+		JobOptimizer optimizer = JobOptimizer.getJobOptimizer(sourceProfile,
+				dataModel, cluster, conf);
+		optimizer.optimize();
+		conf = optimizer.getBestConfiguration(true);
+		job = optimizer.getBestMRJobInfo();
 	}
 }

@@ -1,41 +1,54 @@
 package edu.duke.starfish.profile.profiler;
 
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_JOB_REUSE_JVM;
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_MAP_SPECULATIVE_EXEC;
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_NUM_SPILLS_COMBINE;
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_RED_IN_BUFF_PERC;
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_RED_PARALLEL_COPIES;
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_RED_SPECULATIVE_EXEC;
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_TASK_PROFILE;
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_TASK_PROFILE_MAPS;
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_TASK_PROFILE_REDS;
+import static edu.duke.starfish.profile.utils.Constants.HADOOP_COMPLETED_HISTORY;
+import static edu.duke.starfish.profile.utils.Constants.HADOOP_HDFS_JOB_HISTORY;
+import static edu.duke.starfish.profile.utils.Constants.HADOOP_LOCAL_JOB_HISTORY;
+import static edu.duke.starfish.profile.utils.Constants.HADOOP_LOG_DIR;
+import static edu.duke.starfish.profile.utils.Constants.MR_JAR;
+import static edu.duke.starfish.profile.utils.Constants.MR_JOB_REUSE_JVM;
+import static edu.duke.starfish.profile.utils.Constants.MR_MAP_SPECULATIVE_EXEC;
+import static edu.duke.starfish.profile.utils.Constants.MR_NUM_SPILLS_COMBINE;
+import static edu.duke.starfish.profile.utils.Constants.MR_OUTPUT_DIR;
+import static edu.duke.starfish.profile.utils.Constants.MR_RED_IN_BUFF_PERC;
+import static edu.duke.starfish.profile.utils.Constants.MR_RED_PARALLEL_COPIES;
+import static edu.duke.starfish.profile.utils.Constants.MR_RED_SPECULATIVE_EXEC;
+import static edu.duke.starfish.profile.utils.Constants.MR_TASK_PROFILE;
+import static edu.duke.starfish.profile.utils.Constants.MR_TASK_PROFILE_MAPS;
+import static edu.duke.starfish.profile.utils.Constants.MR_TASK_PROFILE_REDS;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileFilter;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLConnection;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
-import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.io.IOUtils;
 
 import edu.duke.starfish.profile.profileinfo.execution.MRExecutionStatus;
 import edu.duke.starfish.profile.profileinfo.execution.jobs.MRJobInfo;
+import edu.duke.starfish.profile.profileinfo.execution.mrtaskattempts.MRMapAttemptInfo;
 import edu.duke.starfish.profile.profileinfo.execution.mrtaskattempts.MRReduceAttemptInfo;
+import edu.duke.starfish.profile.profileinfo.execution.mrtaskattempts.MRTaskAttemptInfo;
 import edu.duke.starfish.profile.profiler.loaders.MRJobHistoryLoader;
 import edu.duke.starfish.profile.profiler.loaders.MRTaskProfilesLoader;
+import edu.duke.starfish.profile.utils.XMLProfileParser;
 
 /**
  * This class provides static methods for enabling and performing MapReduce job
@@ -51,7 +64,7 @@ public class Profiler {
 	 */
 
 	// Public constants
-	public static final String BTRACE_PROFILE_DIR = "btrace.profile.dir";
+	public static final String PROFILER_BTRACE_DIR = "starfish.profiler.btrace.dir";
 	public static final String PROFILER_CLUSTER_NAME = "starfish.profiler.cluster.name";
 	public static final String PROFILER_OUTPUT_DIR = "starfish.profiler.output.dir";
 	public static final String PROFILER_RETAIN_TASK_PROFS = "starfish.profiler.retain.task.profiles";
@@ -76,13 +89,13 @@ public class Profiler {
 	 */
 
 	/**
-	 * This method will enable dynamic profiling using the HadoopBTrace script
-	 * for all the job tasks. There are two requirements for performing
+	 * This method will enable dynamic profiling using the BTraceTaskProfile
+	 * script for all the job tasks. There are two requirements for performing
 	 * profiling:
 	 * <ol>
 	 * <li>
 	 * The user must specify in advance the location of the script in the
-	 * "btrace.profile.dir"
+	 * "starfish.profiler.btrace.dir"
 	 * <li>The code must be using the new Hadoop API
 	 * </ol>
 	 * 
@@ -94,11 +107,11 @@ public class Profiler {
 
 		if (enableProfiling(conf)) {
 			conf.set("mapred.task.profile.params", "-javaagent:"
-					+ "${btrace.profile.dir}/btrace-agent.jar="
+					+ "${starfish.profiler.btrace.dir}/btrace-agent.jar="
 					+ "dumpClasses=false,debug=false,"
 					+ "unsafe=true,probeDescPath=.,noServer=true,"
-					+ "script=${btrace.profile.dir}/HadoopBTrace.class,"
-					+ "scriptOutputFile=%s");
+					+ "script=${starfish.profiler.btrace.dir}/"
+					+ "BTraceTaskProfile.class,scriptOutputFile=%s");
 			return true;
 		} else {
 			return false;
@@ -106,13 +119,13 @@ public class Profiler {
 	}
 
 	/**
-	 * This method will enable dynamic profiling using the HadoopBTraceMem
+	 * This method will enable dynamic profiling using the BTraceTaskMemProfile
 	 * script for all the job tasks. There are two requirements for performing
 	 * profiling:
 	 * <ol>
 	 * <li>
 	 * The user must specify in advance the location of the script in the
-	 * "btrace.profile.dir"
+	 * "starfish.profiler.btrace.dir"
 	 * <li>The code must be using the new Hadoop API
 	 * </ol>
 	 * 
@@ -124,11 +137,11 @@ public class Profiler {
 
 		if (enableProfiling(conf)) {
 			conf.set("mapred.task.profile.params", "-javaagent:"
-					+ "${btrace.profile.dir}/btrace-agent.jar="
+					+ "${starfish.profiler.btrace.dir}/btrace-agent.jar="
 					+ "dumpClasses=false,debug=false,"
 					+ "unsafe=true,probeDescPath=.,noServer=true,"
-					+ "script=${btrace.profile.dir}/HadoopBTraceMem.class,"
-					+ "scriptOutputFile=%s");
+					+ "script=${starfish.profiler.btrace.dir}/"
+					+ "BTraceTaskMemProfile.class,scriptOutputFile=%s");
 			return true;
 		} else {
 			return false;
@@ -136,13 +149,13 @@ public class Profiler {
 	}
 
 	/**
-	 * This method will enable dynamic profiling using the HadoopBTrace script
-	 * for all the job tasks. There are two requirements for performing
+	 * This method will enable dynamic profiling using the BTraceTaskProfile
+	 * script for all the job tasks. There are two requirements for performing
 	 * profiling:
 	 * <ol>
 	 * <li>
 	 * The user must specify in advance the location of the script in the
-	 * "btrace.profile.dir"
+	 * "starfish.profiler.btrace.dir"
 	 * <li>The code must be using the new Hadoop API
 	 * </ol>
 	 * 
@@ -153,8 +166,8 @@ public class Profiler {
 	private static boolean enableProfiling(Configuration conf) {
 
 		// The user must specify the btrace directory
-		if (conf.get(Profiler.BTRACE_PROFILE_DIR) == null) {
-			LOG.warn("The parameter 'btrace.profile.dir' "
+		if (conf.get(PROFILER_BTRACE_DIR) == null) {
+			LOG.warn("The parameter 'starfish.profiler.btrace.dir' "
 					+ "is required to enable profiling");
 			return false;
 		}
@@ -186,10 +199,10 @@ public class Profiler {
 	 * creates the job profile.
 	 * 
 	 * See detailed comments at
-	 * {@link Profiler#gatherJobExecutionFiles(Job, String)}
+	 * {@link Profiler#gatherJobExecutionFiles(Configuration, String)}
 	 * 
-	 * @param job
-	 *            the Hadoop job
+	 * @param conf
+	 *            the Hadoop job configuration
 	 * @param localDir
 	 *            the local directory to place the files at
 	 * @param retainTaskProfs
@@ -197,35 +210,33 @@ public class Profiler {
 	 * @param collectTransfers
 	 *            flag to collect the data transfers
 	 */
-	public static void gatherJobExecutionFiles(Job job, String localDir,
-			boolean retainTaskProfs, boolean collectTransfers) {
+	public static void gatherJobExecutionFiles(Configuration conf,
+			String localDir, boolean retainTaskProfs, boolean collectTransfers) {
 
-		job.getConfiguration().setBoolean(Profiler.PROFILER_RETAIN_TASK_PROFS,
-				retainTaskProfs);
-		job.getConfiguration().setBoolean(Profiler.PROFILER_COLLECT_TRANSFERS,
-				collectTransfers);
-		Profiler.gatherJobExecutionFiles(job, localDir);
+		conf.setBoolean(Profiler.PROFILER_RETAIN_TASK_PROFS, retainTaskProfs);
+		conf.setBoolean(Profiler.PROFILER_COLLECT_TRANSFERS, collectTransfers);
+		Profiler.gatherJobExecutionFiles(conf, localDir);
 	}
 
 	/**
-	 * Gathers the job history files and the task profiles. Generates the job
-	 * profile. The generated directory structure is:
+	 * Gathers the job history files, the task profiles, and data transfers if
+	 * requested. Generates the job profile. The generated directory structure
+	 * is:
 	 * 
 	 * localDir/history/conf.xml <br />
 	 * localDir/history/history_file <br />
 	 * localDir/task_profiles/task.profile <br />
 	 * localDir/job_profiles/job_profile.xml <br />
+	 * localDir/transfers/transfer <br />
 	 * 
-	 * Assumption: The task profiles are located in the working directory
-	 * (placed there by Hadoop when a job completes execution).
-	 * 
-	 * @param job
-	 *            the MapReduce job
+	 * @param conf
+	 *            the MapReduce job configuration
 	 * @param localDir
 	 *            the local output directory
 	 * @throws IOException
 	 */
-	public static void gatherJobExecutionFiles(Job job, String localDir) {
+	public static void gatherJobExecutionFiles(Configuration conf,
+			String localDir) {
 
 		// Note: we must surround the entire method to catch all exceptions
 		// because BTrace cannot catch them
@@ -242,29 +253,36 @@ public class Profiler {
 			// Gather the history files
 			File historyDir = new File(resultsDir, "history");
 			historyDir.mkdir();
-			File[] historyFiles = gatherJobHistoryFiles(job, historyDir);
+			File[] historyFiles = gatherJobHistoryFiles(conf, historyDir);
 
-			// Gather the profile files
-			File taskProfDir = new File(resultsDir, "task_profiles");
-			taskProfDir.mkdir();
-			gatherJobProfileFiles(job, taskProfDir);
+			// Load the history information into a job info
+			MRJobHistoryLoader historyLoader = new MRJobHistoryLoader(
+					historyFiles[0].getAbsolutePath(),
+					historyFiles[1].getAbsolutePath());
+			MRJobInfo mrJob = historyLoader.getMRJobInfoWithDetails();
+			String jobId = mrJob.getExecId();
 
-			// Export the job profile XML file
-			String jobId = getJobId(job);
-			File jobProfDir = new File(resultsDir, "job_profiles");
-			jobProfDir.mkdir();
+			if (conf.getBoolean(MR_TASK_PROFILE, false)) {
 
-			File profileXML = new File(jobProfDir, "profile_" + jobId + ".xml");
-			MRJobInfo mrJob = exportProfileXMLFile(historyFiles[0],
-					historyFiles[1], taskProfDir, profileXML);
+				// Gather the profile files
+				File taskProfDir = new File(resultsDir, "task_profiles");
+				taskProfDir.mkdir();
+				gatherJobProfileFiles(mrJob, taskProfDir);
 
-			// Remove the task profiles if requested
-			Configuration conf = job.getConfiguration();
-			if (!conf.getBoolean(PROFILER_RETAIN_TASK_PROFS, true)) {
-				for (File file : getTaskProfiles(job, taskProfDir)) {
-					file.delete();
+				// Export the job profile XML file
+				File jobProfDir = new File(resultsDir, "job_profiles");
+				jobProfDir.mkdir();
+				File profileXML = new File(jobProfDir, "profile_" + jobId
+						+ ".xml");
+				exportProfileXMLFile(mrJob, conf, taskProfDir, profileXML);
+
+				// Remove the task profiles if requested
+				if (!conf.getBoolean(PROFILER_RETAIN_TASK_PROFS, true)) {
+					for (File file : listTaskProfiles(jobId, taskProfDir)) {
+						file.delete();
+					}
+					taskProfDir.delete();
 				}
-				taskProfDir.delete();
 			}
 
 			// Get the data transfers if requested
@@ -281,22 +299,22 @@ public class Profiler {
 	}
 
 	/**
-	 * Copies the two history files (conf and stats) from the
-	 * output/_logs/history directory of the job to the provided local history
+	 * Copies the two history files (conf and stats) from the Hadoop history
+	 * directory of the job (local or on HDFS) to the provided local history
 	 * directory.
 	 * 
 	 * This method returns an array of two files, corresponding to the local
 	 * conf and stats files respectively.
 	 * 
-	 * @param job
-	 *            The MapReduce job
+	 * @param conf
+	 *            the Hadoop configuration
 	 * @param historyDir
 	 *            the local history directory
 	 * @return the conf and stats files
 	 * @throws IOException
 	 */
-	public static File[] gatherJobHistoryFiles(Job job, File historyDir)
-			throws IOException {
+	public static File[] gatherJobHistoryFiles(Configuration conf,
+			File historyDir) throws IOException {
 
 		// Create the local directory
 		historyDir.mkdirs();
@@ -305,32 +323,55 @@ public class Profiler {
 					+ historyDir.toString());
 		}
 
-		// Get the local Hadoop history directory
-		Configuration conf = job.getConfiguration();
-		String localHistory = conf
-				.get("hadoop.job.history.location", "file:///"
-						+ new File(System.getProperty("hadoop.log.dir"))
-								.getAbsolutePath() + File.separator + "history");
+		// Get the HDFS Hadoop history directory
+		Path hdfsHistoryDir = null;
+		String outDir = conf.get(HADOOP_HDFS_JOB_HISTORY, conf
+				.get(MR_OUTPUT_DIR));
+		if (outDir != null && !outDir.equals("none")) {
+
+			hdfsHistoryDir = new Path(new Path(outDir), "_logs"
+					+ Path.SEPARATOR + "history");
+
+			// Copy the history files
+			File[] localFiles = copyHistoryFiles(conf, hdfsHistoryDir,
+					historyDir);
+			if (localFiles != null)
+				return localFiles;
+		}
+
+		// Get the local Hadoop history directory (Hadoop v0.20.2)
+		String localHistory = conf.get(HADOOP_LOCAL_JOB_HISTORY, "file:///"
+				+ new File(System.getProperty(HADOOP_LOG_DIR))
+						.getAbsolutePath() + File.separator + "history");
 		Path localHistoryDir = new Path(localHistory);
 
 		// Copy the history files
-		File[] localFiles = copyHistoryFiles(job, localHistoryDir, historyDir);
+		File[] localFiles = copyHistoryFiles(conf, localHistoryDir, historyDir);
 		if (localFiles != null)
 			return localFiles;
 
-		// Get the HDFS Hadoop history directory
-		String outDir = conf.get("hadoop.job.history.user.location");
-		if (outDir == null)
-			outDir = conf.get("mapred.output.dir");
+		// Get the local Hadoop history directory (Hadoop v0.20.203)
+		String jobId = getJobId(conf);
+		String doneLocation = conf.get(HADOOP_COMPLETED_HISTORY);
+		if (doneLocation == null)
+			doneLocation = new Path(localHistoryDir, "done").toString();
 
-		Path output = new Path(outDir);
-		Path hdfsHistoryDir = new Path(output, "_logs" + Path.SEPARATOR
-				+ "history");
+		// Build the history location pattern. Example:
+		// history/done/version-1/localhost_1306866807968_/2011/05/31/000000
+		String localHistoryPattern = doneLocation + "/version-1/*_/"
+				+ jobId.substring(4, 8) + "/" + jobId.substring(8, 10) + "/"
+				+ jobId.substring(10, 12) + "/*";
 
-		// Copy the history files
-		localFiles = copyHistoryFiles(job, hdfsHistoryDir, historyDir);
-		if (localFiles != null)
-			return localFiles;
+		FileSystem fs = FileSystem.getLocal(conf);
+		FileStatus[] status = fs.globStatus(new Path(localHistoryPattern));
+		if (status != null && status.length > 0) {
+			for (FileStatus stat : status) {
+				// Copy the history files
+				localFiles = copyHistoryFiles(conf, stat.getPath(), historyDir);
+				if (localFiles != null)
+					return localFiles;
+			}
+		}
 
 		// Unable to copy the files
 		throw new IOException("Unable to find history files in directories "
@@ -339,67 +380,24 @@ public class Profiler {
 	}
 
 	/**
-	 * Copy the history files from Hadoop (local or HDFS) to the local directory
+	 * Gathers the task profile files into the provided profiles directory.
 	 * 
-	 * @param job
-	 *            the Hadoop job
-	 * @param hadoopHistoryDir
-	 *            the Hadoop history directory to copy from
-	 * @param localHistoryDir
-	 *            the local history directory to copy to
-	 * @return the two copied files
-	 * @throws IOException
-	 */
-	private static File[] copyHistoryFiles(Job job, Path hadoopHistoryDir,
-			File localHistoryDir) throws IOException {
-
-		// Ensure the Hadoop history dir exists
-		Configuration conf = job.getConfiguration();
-		FileSystem fs = hadoopHistoryDir.getFileSystem(conf);
-		if (!fs.exists(hadoopHistoryDir)) {
-			return null;
-		}
-
-		// Get the two job files
-		final String jobId = getJobId(job);
-		Path[] jobFiles = FileUtil.stat2Paths(fs.listStatus(hadoopHistoryDir,
-				new PathFilter() {
-					@Override
-					public boolean accept(Path path) {
-						return path.getName().contains(jobId);
-					}
-				}));
-
-		if (jobFiles.length != 2) {
-			return null;
-		}
-
-		// Copy the history files to the local directory
-		File[] localJobFiles = new File[2];
-		for (Path jobFile : jobFiles) {
-			File localJobFile = new File(localHistoryDir, jobFile.getName());
-			FileUtil.copy(fs, jobFile, localJobFile, false, conf);
-
-			if (localJobFile.getName().endsWith(".xml"))
-				localJobFiles[0] = localJobFile;
-			else
-				localJobFiles[1] = localJobFile;
-		}
-
-		return localJobFiles;
-	}
-
-	/**
-	 * Moves all the profile files from the working directory (placed here by
-	 * Hadoop when a job completes) to the provided profiles directory.
+	 * This method will first look into the working directory for the task
+	 * profile files. Hadoop will place them here when a job completes, if the
+	 * user used the waitForCompletion method to submit the job. In this case,
+	 * this method simply moves all the profile files from the working directory
+	 * to the provided profiles directory.
 	 * 
-	 * @param job
-	 *            The MapReduce job
+	 * If the files are not found in the working directory, the method will
+	 * contact all task trackers and download all the task profile files.
+	 * 
+	 * @param mrJob
+	 *            The MapReduce job info
 	 * @param profilesDir
 	 *            The profiles directory
 	 * @throws IOException
 	 */
-	public static void gatherJobProfileFiles(Job job, File profilesDir)
+	public static void gatherJobProfileFiles(MRJobInfo mrJob, File profilesDir)
 			throws IOException {
 
 		// Check for a valid destination directory
@@ -413,10 +411,24 @@ public class Profiler {
 		File srcDir = new File(System.getProperty("user.dir"));
 
 		// Move the profile files to the new directory
-		for (File file : getTaskProfiles(job, srcDir)) {
+		boolean foundProfiles = false;
+		for (File file : listTaskProfiles(mrJob.getExecId(), srcDir)) {
 			if (!file.renameTo(new File(profilesDir, file.getName()))) {
 				throw new IOException("Unable to move the file  "
 						+ file.toString());
+			}
+			foundProfiles = true;
+		}
+
+		if (!foundProfiles) {
+			// Download the profiles from the cluster
+			for (MRMapAttemptInfo attempt : mrJob
+					.getMapAttempts(MRExecutionStatus.SUCCESS)) {
+				downloadTaskProfile(attempt, profilesDir);
+			}
+			for (MRReduceAttemptInfo attempt : mrJob
+					.getReduceAttempts(MRExecutionStatus.SUCCESS)) {
+				downloadTaskProfile(attempt, profilesDir);
 			}
 		}
 	}
@@ -438,19 +450,11 @@ public class Profiler {
 		for (MRReduceAttemptInfo attempt : mrJob
 				.getReduceAttempts(MRExecutionStatus.SUCCESS)) {
 
-			// Build the HTTP task log URL
-			StringBuilder httpTaskLog = new StringBuilder();
-			httpTaskLog.append("http://");
-			httpTaskLog.append(attempt.getTaskTracker().getHostName());
-			httpTaskLog.append(":");
-			httpTaskLog.append(attempt.getTaskTracker().getPort());
-			httpTaskLog.append("/tasklog?plaintext=true&taskid="
-					+ attempt.getExecId());
-			httpTaskLog.append("&filter=syslog");
+			// Open the connection to the syslog
+			HttpURLConnection connection = openHttpTaskLogConnection(attempt,
+					"syslog");
 
-			// Open the connection and get the input stream
-			URL taskLogUrl = new URL(httpTaskLog.toString());
-			URLConnection connection = taskLogUrl.openConnection();
+			// Get the input stream
 			BufferedReader input = new BufferedReader(new InputStreamReader(
 					connection.getInputStream()));
 
@@ -480,23 +484,17 @@ public class Profiler {
 	 * necessary information, generate the job profile, and export it as an XML
 	 * file.
 	 * 
-	 * @param confFile
-	 *            the job configuration file
-	 * @param historyFile
-	 *            the job history file
+	 * @param mrJob
+	 *            the job info
+	 * @param conf
+	 *            the job configuration
 	 * @param profilesDir
 	 *            the job profiles directory
 	 * @param profileXML
 	 *            the output XML profile file
 	 */
-	public static MRJobInfo exportProfileXMLFile(File confFile,
-			File historyFile, File profilesDir, File profileXML) {
-
-		// Parse the history files and get the MR job info
-		MRJobHistoryLoader historyLoader = new MRJobHistoryLoader(confFile
-				.getAbsolutePath(), historyFile.getAbsolutePath());
-		MRJobInfo mrJob = historyLoader.getMRJobInfoWithDetails();
-		Configuration conf = historyLoader.getHadoopConfiguration();
+	public static void exportProfileXMLFile(MRJobInfo mrJob,
+			Configuration conf, File profilesDir, File profileXML) {
 
 		// Parse the profile files and get the job profile
 		MRTaskProfilesLoader profileLoader = new MRTaskProfilesLoader(mrJob,
@@ -515,19 +513,17 @@ public class Profiler {
 			LOG.error("Unable to create the job profile for "
 					+ mrJob.getExecId());
 		}
-
-		return mrJob;
 	}
 
 	/**
 	 * Builds and returns the job identifier (e.g., job_23412331234_1234)
 	 * 
-	 * @param job
-	 *            the MapReduce job
+	 * @param conf
+	 *            the Hadoop configuration of the job
 	 * @return the job identifier
 	 */
-	public static String getJobId(Job job) {
-		String jar = job.getJar();
+	public static String getJobId(Configuration conf) {
+		String jar = conf.get(MR_JAR);
 
 		Matcher matcher = JOB_PATTERN.matcher(jar);
 		if (matcher.find()) {
@@ -538,26 +534,233 @@ public class Profiler {
 	}
 
 	/**
+	 * Loads system properties common to profiling, job analysis, what-if
+	 * analysis, and optimization. The system properties are set in the
+	 * bin/config.sh script.
+	 * 
+	 * @param conf
+	 *            the configuration
+	 */
+	public static void loadCommonSystemProperties(Configuration conf) {
+
+		// The BTrace directory for the task profiling
+		if (conf.get(Profiler.PROFILER_BTRACE_DIR) == null)
+			conf.set(Profiler.PROFILER_BTRACE_DIR, 
+					System.getProperty(Profiler.PROFILER_BTRACE_DIR));
+
+		// The cluster name
+		if (conf.get(Profiler.PROFILER_CLUSTER_NAME) == null)
+			conf.set(Profiler.PROFILER_CLUSTER_NAME, 
+					System.getProperty(Profiler.PROFILER_CLUSTER_NAME));
+
+		// The output directory for the result files
+		if (conf.get(Profiler.PROFILER_OUTPUT_DIR) == null)
+			conf.set(Profiler.PROFILER_OUTPUT_DIR, 
+					System.getProperty(Profiler.PROFILER_OUTPUT_DIR));
+	}
+
+	/**
+	 * Loads system properties related to profiling into the Hadoop
+	 * configuration. The system properties are set in the bin/config.sh script.
+	 * 
+	 * @param conf
+	 *            the configuration
+	 */
+	public static void loadProfilingSystemProperties(Configuration conf) {
+
+		// Load the common system properties
+		loadCommonSystemProperties(conf);
+
+		// The sampling mode (off, profiles, or tasks)
+		if (conf.get(Profiler.PROFILER_SAMPLING_MODE) == null)
+			conf.set(Profiler.PROFILER_SAMPLING_MODE, 
+					System.getProperty(Profiler.PROFILER_SAMPLING_MODE));
+
+		// The sampling fraction
+		if (conf.get(Profiler.PROFILER_SAMPLING_FRACTION) == null)
+			conf.set(Profiler.PROFILER_SAMPLING_FRACTION, 
+					System.getProperty(Profiler.PROFILER_SAMPLING_FRACTION));
+
+		// Flag to retain the task profiles
+		if (conf.get(Profiler.PROFILER_RETAIN_TASK_PROFS) == null)
+			conf.set(Profiler.PROFILER_RETAIN_TASK_PROFS, 
+					System.getProperty(Profiler.PROFILER_RETAIN_TASK_PROFS));
+
+		// Flag to collect the data transfers
+		if (conf.get(Profiler.PROFILER_COLLECT_TRANSFERS) == null)
+			conf.set(Profiler.PROFILER_COLLECT_TRANSFERS, 
+					System.getProperty(Profiler.PROFILER_COLLECT_TRANSFERS));
+	}
+
+	/**
+	 * Build and return the URL to the log file for this particular task
+	 * attempt.
+	 * 
+	 * Valid values for logFile: stdout, stderr, syslog, profile
+	 * 
+	 * NOTE: Hadoop 0.20.2 uses taskid in the URL whereas Hadoop 0.20.203.0 uses
+	 * attemptid. The boolean useAttemptId is used to support both versions.
+	 * 
+	 * @param attempt
+	 *            the task attempt
+	 * @param logFile
+	 *            the log file of interest
+	 * @param useAttemptId
+	 *            whether to use attemptid or taskid
+	 * @return the URL to the log file
+	 * @throws IOException
+	 */
+	private static URL buildHttpTaskLogUrl(MRTaskAttemptInfo attempt,
+			String logFile, boolean useAttemptId) throws IOException {
+
+		// Build the HTTP task log URL
+		StringBuilder httpTaskLog = new StringBuilder();
+		httpTaskLog.append("http://");
+		httpTaskLog.append(attempt.getTaskTracker().getHostName());
+		httpTaskLog.append(":");
+		httpTaskLog.append(attempt.getTaskTracker().getPort());
+		if (useAttemptId)
+			httpTaskLog.append("/tasklog?plaintext=true&attemptid=");
+		else
+			httpTaskLog.append("/tasklog?plaintext=true&taskid=");
+		httpTaskLog.append(attempt.getExecId());
+		httpTaskLog.append("&filter=");
+		httpTaskLog.append(logFile);
+
+		// Open the connection and get the input stream
+		return new URL(httpTaskLog.toString());
+	}
+
+	/**
+	 * Copy the history files from Hadoop (local or HDFS) to the local directory
+	 * 
+	 * @param conf
+	 *            the Hadoop configuration
+	 * @param hadoopHistoryDir
+	 *            the Hadoop history directory (local or on HDFS) to copy from
+	 * @param localHistoryDir
+	 *            the local history directory to copy to
+	 * @return the two copied files
+	 * @throws IOException
+	 */
+	private static File[] copyHistoryFiles(Configuration conf,
+			Path hadoopHistoryDir, File localHistoryDir) throws IOException {
+
+		// Ensure the Hadoop history dir exists
+		FileSystem fs = hadoopHistoryDir.getFileSystem(conf);
+		if (!fs.exists(hadoopHistoryDir)) {
+			return null;
+		}
+
+		// Get the two job files
+		final String jobId = getJobId(conf);
+		Path[] jobFiles = FileUtil.stat2Paths(fs.listStatus(hadoopHistoryDir,
+				new PathFilter() {
+					@Override
+					public boolean accept(Path path) {
+						return path.getName().contains(jobId);
+					}
+				}));
+
+		if (jobFiles.length != 2) {
+			return null;
+		}
+
+		// Copy the history files to the local directory
+		File[] localJobFiles = new File[2];
+		for (Path jobFile : jobFiles) {
+			File localJobFile = new File(localHistoryDir, jobFile.getName());
+			FileUtil.copy(fs, jobFile, localJobFile, false, conf);
+
+			if (localJobFile.getName().endsWith(".xml"))
+				localJobFiles[0] = localJobFile;
+			else
+				localJobFiles[1] = localJobFile;
+		}
+
+		return localJobFiles;
+	}
+
+	/**
+	 * Download a task profile from the cluster to the provided profiles
+	 * directory
+	 * 
+	 * @param attempt
+	 *            the task attempt
+	 * @param profilesDir
+	 *            the profiles directory to place the file
+	 * @throws IOException
+	 */
+	private static void downloadTaskProfile(MRTaskAttemptInfo attempt,
+			File profilesDir) throws IOException {
+		HttpURLConnection connection = openHttpTaskLogConnection(attempt,
+				"profile");
+
+		if (connection.getResponseCode() == HttpURLConnection.HTTP_OK) {
+			InputStream in = connection.getInputStream();
+			OutputStream out = new FileOutputStream(new File(profilesDir,
+					attempt.getExecId() + ".profile"));
+			IOUtils.copyBytes(in, out, 64 * 1024, true);
+		}
+	}
+
+	/**
 	 * Returns an array of task profile files found in the provided directory
 	 * for the particular MapReduce job
 	 * 
-	 * @param job
-	 *            the MapReduce job
+	 * @param jobId
+	 *            the MapReduce job id
 	 * @param dir
 	 *            the directory
 	 * @return the task profile files
 	 */
-	private static File[] getTaskProfiles(Job job, File dir) {
+	private static File[] listTaskProfiles(String jobId, File dir) {
+
 		// List all relevant files
-		final String jobId = getJobId(job).substring(4);
+		final String strippedJobId = jobId.substring(4);
 		File[] files = dir.listFiles(new FileFilter() {
 			public boolean accept(File pathname) {
 				return pathname.isFile() && !pathname.isHidden()
-						&& pathname.getName().contains(jobId)
+						&& pathname.getName().contains(strippedJobId)
 						&& pathname.getName().endsWith(".profile");
 			}
 		});
 
 		return files;
 	}
+
+	/**
+	 * Opens an HTTP URL connection to the requested logFile for the particular
+	 * task attempt.
+	 * 
+	 * Valid values for logFile: stdout, stderr, syslog, profile
+	 * 
+	 * If the log file does not exist, the connection's response code will be
+	 * HttpURLConnection.HTTP_BAD_REQUEST
+	 * 
+	 * @param attempt
+	 *            the task attempt
+	 * @param logFile
+	 *            the log file of interest
+	 * @return the HTTP URL connection to the log file
+	 * @throws IOException
+	 */
+	private static HttpURLConnection openHttpTaskLogConnection(
+			MRTaskAttemptInfo attempt, String logFile) throws IOException {
+
+		// Get the URL to the log file and open the connection
+		URL taskLogUrl = buildHttpTaskLogUrl(attempt, logFile, false);
+		HttpURLConnection connection = (HttpURLConnection) taskLogUrl
+				.openConnection();
+
+		if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
+			// This case handles backwards incompatibility introduced with
+			// Hadoop 0.20.203.0
+			taskLogUrl = buildHttpTaskLogUrl(attempt, logFile, true);
+			connection = (HttpURLConnection) taskLogUrl.openConnection();
+		}
+
+		return connection;
+	}
+
 }

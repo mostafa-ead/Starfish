@@ -1,6 +1,6 @@
 package edu.duke.starfish.profile.profileinfo.setup;
 
-import edu.duke.starfish.profile.profileinfo.utils.Constants;
+import edu.duke.starfish.profile.utils.Constants;
 
 /**
  * Represents the information about a Task Tracker

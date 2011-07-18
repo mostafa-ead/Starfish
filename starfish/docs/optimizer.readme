@@ -1,0 +1,72 @@
+Project: Cost-based Job Optimization in Starfish
+Author: Herodotos Herodotou
+Date: Mar 03, 2011
+
+Requirements
+------------
+The Profiler has been used (see profile.readme) to generate the job profiles
+
+
+Setup
+-----
+Specify the global optimization options in bin/config.sh
+
+
+Job Optimization on a live cluster (with actual input data)
+------------------------------------------------------------
+Use the bin/optimize script to perform job optimization:
+
+Usage:
+  ./bin/optimize {recommend|run} job_id hadoop jar jarFile [mainClass] [genericOptions] args...
+
+  recommend   = display the recommended configuration settings
+  run         = display the job with automatically selected settings
+  job_id      = the job id of the profiled job
+
+Examples:
+  ./bin/optimize recommend job_201008240839_0000 hadoop jar hadoop-starfish-examples.jar wordcount input output
+
+  ./bin/optimize run job_201008240839_0000 hadoop jar hadoop-starfish-examples.jar wordcount input output
+
+
+Job Optimization on a hypothetical cluster (with hypothetical input data)
+-------------------------------------------------------------------------
+Use the bin/optimize script to perform job optimization:
+
+Usage:
+  ./bin/optimize profile_file input_file cluster_file [-c conf_file] [-o output_file]
+
+  profile_file = the job profile file (XML file)
+  input_file   = the input specifications file (XML file)
+  cluster_file = the cluster specifications file (XML file)
+  conf_file    = optional job configuration file (XML file)
+  output_file  = optional file to write the output to
+
+Example:
+  ./bin/optimize profile-wordcount.xml virtual-input.xml virtual-cluster.xml -c myconf.xml
+
+
+Notes
+-----
+1. The samples/whatif directory contains sample input.xml and cluster.xml files.
+
+2. You can use the starfish-job-optimizer.jar to get a recommendation on a live
+   Hadoop cluster and avoid using the flags -input and -cluster. In this case,
+   you must specify the job's input in the configuration file using the
+   'mapred.input.dir' property. You must also define the input format class,
+   if not using the TextInputFormat. Finally, if there is any dependency on 
+   external jars, they must be specified using the environmental 
+   variable 'HADOOP_CLASSPATH'.
+
+3. You can use the Starfish Visualizer to ask hypothetical questions regarding
+   the MapReduce job execution.
+
+
+LIMITATIONS
+-----------
+Currently, we do not profile compression! If you plan to use the job profile
+to ask what-if questions regarding compression or to use the Job Optimizer,
+then you must profile the same job twice: once with no compression and once
+with compression. Then use the 'adjust' mode in the starfish-*-profiler.jar
+to create the job profile.
+

@@ -1,10 +1,9 @@
 package edu.duke.starfish.whatif.scheduler;
 
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_RED_SLOWSTART_MAPS;
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.DEF_RED_SLOWSTART_MAPS;
+import static edu.duke.starfish.profile.utils.Constants.DEF_RED_SLOWSTART_MAPS;
+import static edu.duke.starfish.profile.utils.Constants.MR_RED_SLOWSTART_MAPS;
 
 import java.text.NumberFormat;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
@@ -46,14 +45,15 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 	 */
 
 	// Simulation setup
-	private ClusterConfiguration cluster;
 	private PriorityQueue<TaskSlot> mapSlots;
 	private PriorityQueue<TaskSlot> redSlots;
 
 	private boolean ignoreReducers; // Flag to not schedule the reducers
+	private ClusterConfiguration cluster;
 
 	// Constants
 	private static final long HALF_HEARTBEAT_DELAY = 1500l;
+	private static final long HEARTBEAT_DELAY = 3000l;
 	private static final String JOB_NAME = "Virtual Job";
 	private static final String USER_NAME = "Virtual User";
 	private static final String VIRTUAL_TASK = "virtual_task_";
@@ -70,13 +70,33 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 	}
 
 	/**
-	 * Default Constructor
+	 * Constructor
+	 * 
+	 * @param cluster
+	 *            the cluster to schedule tasks on
 	 */
-	public BasicFIFOScheduler() {
-		this.cluster = null;
-		this.mapSlots = null;
-		this.redSlots = null;
+	public BasicFIFOScheduler(ClusterConfiguration cluster) {
+
+		// Initialize the task slots
+		this.mapSlots = new PriorityQueue<TaskSlot>(cluster.getTotalMapSlots());
+		this.redSlots = new PriorityQueue<TaskSlot>(
+				cluster.getTotalReduceSlots());
+		Date launchTime = new Date();
+
+		for (TaskTrackerInfo taskTracker : cluster.getAllTaskTrackersInfos()) {
+			// Initialize the map slots
+			int numMapSlots = taskTracker.getNumMapSlots();
+			for (int i = 0; i < numMapSlots; ++i)
+				mapSlots.add(new TaskSlot(taskTracker, launchTime));
+
+			// Initialize the reduce slots
+			int numRedSlots = taskTracker.getNumReduceSlots();
+			for (int i = 0; i < numRedSlots; ++i)
+				redSlots.add(new TaskSlot(taskTracker, launchTime));
+		}
+
 		this.ignoreReducers = false;
+		this.cluster = cluster;
 	}
 
 	/* ***************************************************************
@@ -85,18 +105,52 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 	 */
 
 	/**
-	 * @see edu.duke.starfish.whatif.scheduler.IWhatIfScheduler#scheduleJobGetJobInfo(ClusterConfiguration,
-	 *      MRJobProfile, Configuration)
+	 * @see IWhatIfScheduler#checkpoint()
 	 */
 	@Override
-	public MRJobInfo scheduleJobGetJobInfo(ClusterConfiguration cluster,
+	public void checkpoint() {
+		// Checkpoint all slots
+		for (TaskSlot slot : mapSlots)
+			slot.checkpoint();
+		for (TaskSlot slot : redSlots)
+			slot.checkpoint();
+	}
+
+	/**
+	 * @see IWhatIfScheduler#reset()
+	 */
+	@Override
+	public void reset() {
+		// Reset all slots
+		for (TaskSlot slot : mapSlots)
+			slot.reset();
+		for (TaskSlot slot : redSlots)
+			slot.reset();
+	}
+
+	/**
+	 * @see IWhatIfScheduler#getCluster()
+	 */
+	@Override
+	public ClusterConfiguration getCluster() {
+		return cluster;
+	}
+
+	/**
+	 * @see IWhatIfScheduler#scheduleJobGetJobInfo(Date, MRJobProfile,
+	 *      Configuration)
+	 */
+	@Override
+	public MRJobInfo scheduleJobGetJobInfo(Date submissionTime,
 			MRJobProfile jobProfile, Configuration conf) {
 
-		// Initialize the task slots
-		initialize(cluster);
+		// Find the job start time
+		Date jobStartTime = mapSlots.peek().getReadyTime();
+		if (jobStartTime.before(submissionTime))
+			jobStartTime = submissionTime;
+		jobStartTime = new Date(jobStartTime.getTime() + HEARTBEAT_DELAY);
 
 		// Create the job
-		Date jobStartTime = new Date();
 		MRJobInfo job = new MRJobInfo(0, jobProfile.getJobId(), jobStartTime,
 				null, MRExecutionStatus.SUCCESS, null, JOB_NAME, USER_NAME);
 		job.setProfile(jobProfile);
@@ -113,32 +167,26 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 		Collections.sort(mapProfs, new Comparator<MRMapProfile>() {
 			@Override
 			public int compare(MRMapProfile p1, MRMapProfile p2) {
-				long size1 = p1.getCounter(MRCounter.HDFS_BYTES_READ, 0l);
-				long size2 = p2.getCounter(MRCounter.HDFS_BYTES_READ, 0l);
+				Long size1 = p1.getCounter(MRCounter.HDFS_BYTES_READ, 0l);
+				Long size2 = p2.getCounter(MRCounter.HDFS_BYTES_READ, 0l);
 
-				if (size1 == size2)
-					return 0;
-				else if (size1 > size2)
-					return -1;
-				else
-					return 1;
+				return size2.compareTo(size1);
 			}
 		});
 
 		// Schedule all the map tasks
 		int mapId = 0;
-		long mapsExecutionTime = 0l;
-		Date lastMapEndTime = null;
-		for (MRMapProfile mapProf : mapProfs) {
+		Date lastMapEndTime = jobStartTime;
 
-			// Schedule all map tasks to the map slots
+		for (MRMapProfile mapProf : mapProfs) {
 			int numTasks = mapProf.getNumTasks();
 			for (int i = 0; i < numTasks; ++i) {
+
+				// Schedule this map task on a map slot
 				TaskSlot mapSlot = mapSlots.poll();
 				MRMapAttemptInfo mapAttempt = scheduleMapExecution(mapSlot,
 						mapProf, jobStartTime);
 				mapAttempt.setProfile(mapProf);
-				mapSlot.addTaskAttempt(mapAttempt);
 				mapSlots.add(mapSlot);
 
 				// Add the map into the job
@@ -153,10 +201,9 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 				mapAttempt.setExecId(buildAttemptId(jobId, mapId, 0, true));
 				++mapId;
 
-				// Keep track of the overall map completion time
-				if (mapSlot.getTotalExecTime() > mapsExecutionTime) {
-					mapsExecutionTime = mapSlot.getTotalExecTime();
-					lastMapEndTime = mapSlot.getLastTaskAttempt().getEndTime();
+				// Keep track of the last map end time
+				if (lastMapEndTime.before(map.getEndTime())) {
+					lastMapEndTime = map.getEndTime();
 				}
 			}
 		}
@@ -164,8 +211,7 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 		// Stop here if there are no reducers or asked to
 		List<MRReduceProfile> redProfiles = jobProfile.getReduceProfiles();
 		if (redProfiles.size() == 0 || ignoreReducers) {
-			job.setEndTime(new Date(lastMapEndTime.getTime()
-					+ HALF_HEARTBEAT_DELAY));
+			job.setEndTime(new Date(lastMapEndTime.getTime() + HEARTBEAT_DELAY));
 			return job;
 		}
 
@@ -195,26 +241,25 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 
 		// Schedule all the reduce tasks
 		int redId = 0;
-		long reducersExecutionTime = 0l;
 		Date lastReduceEndTime = lastMapEndTime;
 
 		for (MRReduceProfile redProfile : redProfiles) {
-
-			// Schedule all reduce tasks to the reduce slots
 			int numRedTasks = redProfile.getNumTasks();
 			for (int i = 0; i < numRedTasks; ++i) {
+
+				// Schedule this reduce task on a reduce slot
 				TaskSlot redSlot = redSlots.poll();
 				MRReduceAttemptInfo redAttempt = scheduleReduceExecution(
 						redSlot, redProfile, redSlowStartTime, lastMapEndTime,
 						numMapTasks);
 				redAttempt.setProfile(redProfile);
-				redSlot.addTaskAttempt(redAttempt);
 				redSlots.add(redSlot);
 
 				// Add the reducer in the job
-				MRReduceInfo reducer = new MRReduceInfo(0, redProfile
-						.getTaskId(), redAttempt.getStartTime(), redAttempt
-						.getEndTime(), MRExecutionStatus.SUCCESS, null);
+				MRReduceInfo reducer = new MRReduceInfo(0,
+						redProfile.getTaskId(), redAttempt.getStartTime(),
+						redAttempt.getEndTime(), MRExecutionStatus.SUCCESS,
+						null);
 				reducer.addAttempt(redAttempt);
 				job.addReduceTaskInfo(reducer);
 
@@ -223,34 +268,31 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 				redAttempt.setExecId(buildAttemptId(jobId, redId, 0, false));
 				++redId;
 
-				// Keep track of the overall job completion time
-				if (redSlot.getTotalExecTime() > reducersExecutionTime) {
-					reducersExecutionTime = redSlot.getTotalExecTime();
-					lastReduceEndTime = redSlot.getLastTaskAttempt()
-							.getEndTime();
+				// Keep track of the last map end time
+				if (lastReduceEndTime.before(reducer.getEndTime())) {
+					lastReduceEndTime = reducer.getEndTime();
 				}
 			}
 		}
 
-		Date endTime = new Date(lastReduceEndTime.getTime()
-				+ HALF_HEARTBEAT_DELAY);
-		job.setEndTime(endTime);
+		job.setEndTime(new Date(lastReduceEndTime.getTime() + HEARTBEAT_DELAY));
 
 		return job;
 	}
 
 	/**
-	 * @see edu.duke.starfish.whatif.scheduler.IWhatIfScheduler#scheduleJobGetTime(ClusterConfiguration,
-	 *      MRJobProfile, Configuration)
+	 * @see IWhatIfScheduler#scheduleJobGetTime(Date, MRJobProfile,
+	 *      Configuration)
 	 */
 	@Override
-	public double scheduleJobGetTime(ClusterConfiguration cluster,
+	public double scheduleJobGetTime(Date submissionTime,
 			MRJobProfile jobProfile, Configuration conf) {
-		return scheduleJobGetJobInfo(cluster, jobProfile, conf).getDuration();
+		return scheduleJobGetJobInfo(submissionTime, jobProfile, conf)
+				.getDuration();
 	}
 
 	/**
-	 * @see edu.duke.starfish.whatif.scheduler.IWhatIfScheduler#setIgnoreReducers(boolean)
+	 * @see IWhatIfScheduler#setIgnoreReducers(boolean)
 	 */
 	@Override
 	public void setIgnoreReducers(boolean ignoreReducers) {
@@ -308,42 +350,6 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 	}
 
 	/**
-	 * Initialize the task slots
-	 * 
-	 * @param cluster
-	 *            the cluster setup
-	 */
-	private void initialize(ClusterConfiguration cluster) {
-
-		// Check if task slots are initialized already
-		if (this.cluster == cluster) {
-			for (TaskSlot slot : mapSlots)
-				slot.initializeSlot();
-			for (TaskSlot slot : redSlots)
-				slot.initializeSlot();
-
-			return;
-		}
-
-		// Initialize the task slots
-		this.cluster = cluster;
-		this.mapSlots = new PriorityQueue<TaskSlot>();
-		this.redSlots = new PriorityQueue<TaskSlot>();
-
-		for (TaskTrackerInfo taskTracker : cluster.getAllTaskTrackersInfos()) {
-			// Initialize the map slots
-			int numMapSlots = taskTracker.getNumMapSlots();
-			for (int i = 0; i < numMapSlots; ++i)
-				mapSlots.add(new TaskSlot(taskTracker));
-
-			// Initialize the reduce slots
-			int numRedSlots = taskTracker.getNumReduceSlots();
-			for (int i = 0; i < numRedSlots; ++i)
-				redSlots.add(new TaskSlot(taskTracker));
-		}
-	}
-
-	/**
 	 * Schedule a map execution on a task slot.
 	 * 
 	 * @param taskSlot
@@ -366,19 +372,21 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 		execTime += HALF_HEARTBEAT_DELAY;
 
 		// Calculate the start and end times
-		Date startTime;
-		MRTaskAttemptInfo lastAttempt = taskSlot.getLastTaskAttempt();
-		if (lastAttempt != null)
-			startTime = lastAttempt.getEndTime();
-		else
+		Date startTime = taskSlot.getReadyTime();
+		if (startTime.before(jobStartTime))
 			startTime = jobStartTime;
+
 		startTime = new Date(startTime.getTime() + HALF_HEARTBEAT_DELAY);
 		Date endTime = new Date(startTime.getTime() + (long) execTime);
 
-		// Return the map attempt
-		return new MRMapAttemptInfo(0, mapProfile.getTaskId(), startTime,
-				endTime, MRExecutionStatus.SUCCESS, null, taskSlot
-						.getTaskTracker(), DataLocality.DATA_LOCAL);
+		// Schedule the map attempt
+		MRMapAttemptInfo mapAttempt = new MRMapAttemptInfo(0,
+				mapProfile.getTaskId(), startTime, endTime,
+				MRExecutionStatus.SUCCESS, null, taskSlot.getTaskTracker(),
+				DataLocality.DATA_LOCAL);
+		taskSlot.scheduleTaskAttempt(mapAttempt);
+
+		return mapAttempt;
 	}
 
 	/**
@@ -390,31 +398,29 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 	 *            the reducer profile
 	 * @param redSlowStartTime
 	 *            the earliest time for reducers to start
-	 * @param mapEndTime
-	 *            the end time of the last mapper
+	 * @param lastMapEndTime
+	 *            the end time of the last map task
 	 * @param numMappers
 	 *            the total number of map tasks
 	 * @return the reduce attempt
 	 */
 	private MRReduceAttemptInfo scheduleReduceExecution(TaskSlot taskSlot,
-			MRReduceProfile redProfile, Date redSlowStartTime, Date mapEndTime,
-			int numMappers) {
+			MRReduceProfile redProfile, Date redSlowStartTime,
+			Date lastMapEndTime, int numMappers) {
 
 		// Calculate the start time
-		Date startTime;
-		MRTaskAttemptInfo lastAttempt = taskSlot.getLastTaskAttempt();
-		if (lastAttempt != null)
-			startTime = lastAttempt.getEndTime();
-		else
+		Date startTime = taskSlot.getReadyTime();
+		if (startTime.before(redSlowStartTime))
 			startTime = redSlowStartTime;
 		startTime = new Date(startTime.getTime() + HALF_HEARTBEAT_DELAY);
 
 		// The shuffle will complete only after all maps have completed
 		double shuffleTime = redProfile.getTiming(MRTaskPhase.SHUFFLE, 0d);
 		Date endShuffleTime;
-		if (taskSlot.getNumWaves() == 0
-				&& shuffleTime < mapEndTime.getTime() - startTime.getTime()) {
-			endShuffleTime = new Date(mapEndTime.getTime()
+		if (startTime.before(lastMapEndTime)
+				&& shuffleTime <= lastMapEndTime.getTime()
+						- startTime.getTime()) {
+			endShuffleTime = new Date(lastMapEndTime.getTime()
 					+ (long) (shuffleTime / numMappers));
 		} else {
 			endShuffleTime = new Date(startTime.getTime() + (long) shuffleTime);
@@ -431,9 +437,13 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 		redTime = redTime - sortTime - shuffleTime + HALF_HEARTBEAT_DELAY;
 		Date endReduceTime = new Date(endSortTime.getTime() + (long) redTime);
 
-		return new MRReduceAttemptInfo(0, redProfile.getTaskId(), startTime,
-				endReduceTime, MRExecutionStatus.SUCCESS, null, taskSlot
-						.getTaskTracker(), endShuffleTime, endSortTime);
+		MRReduceAttemptInfo redAttempt = new MRReduceAttemptInfo(0,
+				redProfile.getTaskId(), startTime, endReduceTime,
+				MRExecutionStatus.SUCCESS, null, taskSlot.getTaskTracker(),
+				endShuffleTime, endSortTime);
+		taskSlot.scheduleTaskAttempt(redAttempt);
+
+		return redAttempt;
 	}
 
 	/* ***************************************************************
@@ -448,34 +458,22 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 	 */
 	private class TaskSlot implements Comparable<TaskSlot> {
 
-		private TaskTrackerInfo taskTracker;
-		private ArrayList<MRTaskAttemptInfo> taskAttempts;
-		private long totalExecTime;
+		private TaskTrackerInfo taskTracker; // The task tracker
+		private Date checkpointTime; // Checkpoint time
+		private Date readyTime; // Time this slot is ready to execute a task
 
 		/**
 		 * Constructor
 		 * 
 		 * @param taskTracker
 		 *            the task tracker
+		 * @param launchTime
+		 *            the launch time for this slot
 		 */
-		public TaskSlot(TaskTrackerInfo taskTracker) {
+		public TaskSlot(TaskTrackerInfo taskTracker, Date launchTime) {
 			this.taskTracker = taskTracker;
-			this.taskAttempts = new ArrayList<MRTaskAttemptInfo>();
-			this.totalExecTime = 0l;
-		}
-
-		/**
-		 * @return the numWaves
-		 */
-		public int getNumWaves() {
-			return taskAttempts.size();
-		}
-
-		/**
-		 * @return the total execution time
-		 */
-		public long getTotalExecTime() {
-			return totalExecTime;
+			this.checkpointTime = launchTime;
+			this.readyTime = launchTime;
 		}
 
 		/**
@@ -485,39 +483,38 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 			return taskTracker;
 		}
 
-		public MRTaskAttemptInfo getLastTaskAttempt() {
-			if (taskAttempts.size() != 0) {
-				return taskAttempts.get(taskAttempts.size() - 1);
-			} else {
-				return null;
-			}
+		/**
+		 * @return the earliest time this slot can schedule a task
+		 */
+		public Date getReadyTime() {
+			return readyTime;
 		}
 
 		/**
-		 * Initialize the task slot
+		 * Checkpoint the ready time
 		 */
-		public void initializeSlot() {
-			this.taskAttempts.clear();
-			this.totalExecTime = 0l;
+		public void checkpoint() {
+			checkpointTime = readyTime;
 		}
 
 		/**
-		 * @param totalExecTime
-		 *            the execution time to add
+		 * Reset the ready time
 		 */
-		public void addTaskAttempt(MRTaskAttemptInfo taskAttempt) {
-			this.taskAttempts.add(taskAttempt);
-			this.totalExecTime += taskAttempt.getDuration();
+		public void reset() {
+			readyTime = checkpointTime;
+		}
+
+		/**
+		 * @param taskAttempt
+		 *            task attempt to schedule
+		 */
+		public void scheduleTaskAttempt(MRTaskAttemptInfo taskAttempt) {
+			readyTime = taskAttempt.getEndTime();
 		}
 
 		@Override
 		public int compareTo(TaskSlot other) {
-			if (this.totalExecTime < other.totalExecTime)
-				return -1;
-			else if (this.totalExecTime > other.totalExecTime)
-				return 1;
-			else
-				return 0;
+			return this.readyTime.compareTo(other.readyTime);
 		}
 
 	}

@@ -10,7 +10,6 @@ import edu.duke.starfish.jobopt.space.ParamSpaceUtils;
 import edu.duke.starfish.jobopt.space.ParameterSpace;
 import edu.duke.starfish.jobopt.space.ParameterSpacePoint;
 import edu.duke.starfish.profile.profileinfo.ClusterConfiguration;
-import edu.duke.starfish.whatif.WhatIfEngine;
 import edu.duke.starfish.whatif.data.DataSetModel;
 import edu.duke.starfish.whatif.oracle.JobProfileOracle;
 import edu.duke.starfish.whatif.scheduler.IWhatIfScheduler;
@@ -52,15 +51,17 @@ public class FullEnumJobOptimizer extends JobOptimizer {
 	 *            the job profile oracle
 	 * @param dataModel
 	 *            the data set model
-	 * @param cluster
-	 *            the cluster setup
 	 * @param scheduler
 	 *            the scheduler
+	 * @param cluster
+	 *            the cluster setup
+	 * @param conf
+	 *            the current configuration settings
 	 */
 	public FullEnumJobOptimizer(JobProfileOracle jobOracle,
-			DataSetModel dataModel, ClusterConfiguration cluster,
-			IWhatIfScheduler scheduler) {
-		super(jobOracle, dataModel, cluster, scheduler);
+			DataSetModel dataModel, IWhatIfScheduler scheduler,
+			ClusterConfiguration cluster, Configuration conf) {
+		super(jobOracle, dataModel, scheduler, cluster, conf);
 	}
 
 	/* ***************************************************************
@@ -69,21 +70,15 @@ public class FullEnumJobOptimizer extends JobOptimizer {
 	 */
 
 	/**
-	 * @see edu.duke.starfish.jobopt.optimizer.JobOptimizer#findBestConfiguration(Configuration)
+	 * @see edu.duke.starfish.jobopt.optimizer.JobOptimizer#optimizeInternal()
 	 */
 	@Override
-	public Configuration findBestConfiguration(Configuration jobConf,
-			boolean fullConf) {
-
-		// Initialize the What-if Engine
-		Configuration conf = new Configuration(jobConf);
-		WhatIfEngine whatifEngine = new WhatIfEngine(jobOracle, dataModel,
-				scheduler, cluster, conf);
+	protected ParameterSpacePoint optimizeInternal() {
 
 		// Initialize the parameter space
-		boolean useRandom = conf.getBoolean(USE_RANDOM_VALUES, false);
-		int numValuesPerParam = conf.getInt(NUM_VALUES_PER_PARAM, 2);
-		ParameterSpace space = ParamSpaceUtils.getFullParamSpace(conf);
+		boolean useRandom = currConf.getBoolean(USE_RANDOM_VALUES, false);
+		int numValuesPerParam = currConf.getInt(NUM_VALUES_PER_PARAM, 2);
+		ParameterSpace space = ParamSpaceUtils.getFullParamSpace(currConf);
 		List<ParameterSpacePoint> points = space.getSpacePointGrid(useRandom,
 				numValuesPerParam);
 
@@ -92,21 +87,7 @@ public class FullEnumJobOptimizer extends JobOptimizer {
 		LOG.debug("Number of settings: " + points.size());
 
 		// Find the best configuration
-		ParameterSpacePoint bestPoint = findBestParameterSpacePoint(
-				whatifEngine, points, conf);
-
-		// Create the best MR job profile
-		bestPoint.populateConfiguration(conf);
-		bestMRJobProfile = jobOracle.whatif(conf, dataModel);
-		bestRunningTime = whatifEngine.whatIfJobConfGetTime(conf);
-
-		// Return the best configuration
-		if (!fullConf) {
-			conf = new Configuration(false);
-			bestPoint.populateConfiguration(conf);
-		}
-		bestConf = conf;
-		return conf;
+		return findBestParameterSpacePoint(points, currConf);
 	}
 
 }

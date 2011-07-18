@@ -58,10 +58,9 @@ for slave in `cat "$SLAVES_FILE"`; do
 {
    printf "Installing on host: $slave\n"
    ssh $HADOOP_SSH_OPTS $slave "mkdir -p $SLAVES_BTRACE_DIR"
-   scp ${MASTER_BTRACE_DIR}/btrace-agent.jar $slave:$SLAVES_BTRACE_DIR/.
-   scp ${MASTER_BTRACE_DIR}/btrace-boot.jar $slave:$SLAVES_BTRACE_DIR/.
-   scp ${MASTER_BTRACE_DIR}/HadoopBTrace.class $slave:$SLAVES_BTRACE_DIR/.
-   scp ${MASTER_BTRACE_DIR}/HadoopBTraceMem.class $slave:$SLAVES_BTRACE_DIR/.
+   scp $HADOOP_SSH_OPTS ${MASTER_BTRACE_DIR}/btrace-agent.jar $slave:$SLAVES_BTRACE_DIR/.
+   scp $HADOOP_SSH_OPTS ${MASTER_BTRACE_DIR}/btrace-boot.jar $slave:$SLAVES_BTRACE_DIR/.
+   scp $HADOOP_SSH_OPTS ${MASTER_BTRACE_DIR}/BTrace*Profile.class $slave:$SLAVES_BTRACE_DIR/.
 }
 done
 

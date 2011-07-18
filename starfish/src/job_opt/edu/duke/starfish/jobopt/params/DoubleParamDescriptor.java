@@ -179,7 +179,7 @@ public class DoubleParamDescriptor extends ParameterDescriptor {
 	 */
 	@Override
 	public String toString() {
-		return "BooleanParamDescriptor [Parameter=" + getParameter()
+		return "DoubleParamDescriptor [Parameter=" + getParameter()
 				+ " Effect=" + getEffect() + " Min=" + minValue + " Max="
 				+ maxValue + "]";
 	}

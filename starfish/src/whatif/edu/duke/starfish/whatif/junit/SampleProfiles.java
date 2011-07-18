@@ -196,7 +196,7 @@ public class SampleProfiles {
 		conf.set("user.name", "hero");
 		conf.set("mapred.output.compress", "true");
 		conf.set("io.bytes.per.checksum", "512");
-		conf.set("btrace.profile.dir", "/local/hero/hadoop-btrace");
+		conf.set("starfish.profiler.btrace.dir", "/local/hero/hadoop-btrace");
 		conf.set("mapred.reduce.slowstart.completed.maps", "0.05");
 		conf.set("mapred.reduce.max.attempts", "4");
 		conf.set("mapred.skip.map.max.skip.records", "0");
@@ -451,7 +451,7 @@ public class SampleProfiles {
 		conf.set("user.name", "hero");
 		conf.set("mapred.output.compress", "true");
 		conf.set("io.bytes.per.checksum", "512");
-		conf.set("btrace.profile.dir", "/local/hero/hadoop-btrace");
+		conf.set("starfish.profiler.btrace.dir", "/local/hero/hadoop-btrace");
 		conf.set("mapred.reduce.slowstart.completed.maps", "0.05");
 		conf.set("mapred.reduce.max.attempts", "4");
 		conf.set("dfs.name.edits.dir", "${dfs.name.dir}");

@@ -1,6 +1,6 @@
 package edu.duke.starfish.whatif.data;
 
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.*;
+import static edu.duke.starfish.profile.utils.Constants.*;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,6 +11,7 @@ import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRMapProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRReduceProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCounter;
+import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRStatistics;
 
 /**
  * The base class for the Dataset Model, which is responsible for reasoning
@@ -50,8 +51,8 @@ public abstract class DataSetModel {
 		for (MRMapProfile mapProf : mapProfiles) {
 			// Add up the total shuffle size
 			shuffleSize += mapProf.getNumTasks()
-					* (mapProf.getCounter(MRCounter.FILE_BYTES_WRITTEN, 0l) - mapProf
-							.getCounter(MRCounter.FILE_BYTES_READ, 0l));
+					* mapProf.getCounter(
+							MRCounter.MAP_OUTPUT_MATERIALIZED_BYTES, 0l);
 
 			// Add up the total number of records
 			shuffleRecs += mapProf.getNumTasks()
@@ -93,18 +94,25 @@ public abstract class DataSetModel {
 			List<MRMapProfile> mapProfiles = jobProfile.getMapProfiles();
 			outputSpecs = new ArrayList<JobOutputSpecs>(mapProfiles.size());
 			for (MRMapProfile prof : mapProfiles) {
-				outputSpecs.add(new JobOutputSpecs(prof.getNumTasks(), prof
-						.getCounter(MRCounter.MAP_OUTPUT_BYTES, 0l), prof
-						.getCounter(MRCounter.MAP_OUTPUT_RECORDS, 0l)));
+				boolean isCompr = prof.getStatistic(
+						MRStatistics.OUT_COMPRESS_RATIO, 1d) != 1d;
+				outputSpecs
+						.add(new JobOutputSpecs(prof.getNumTasks(), prof
+								.getCounter(MRCounter.HDFS_BYTES_WRITTEN, 0l),
+								prof.getCounter(MRCounter.MAP_OUTPUT_RECORDS,
+										0l), isCompr));
 			}
 		} else {
 			// The is a map-reduce job
 			List<MRReduceProfile> redProfiles = jobProfile.getReduceProfiles();
 			outputSpecs = new ArrayList<JobOutputSpecs>(redProfiles.size());
 			for (MRReduceProfile prof : redProfiles) {
+				boolean isCompr = prof.getStatistic(
+						MRStatistics.OUT_COMPRESS_RATIO, 1d) != 1d;
 				outputSpecs.add(new JobOutputSpecs(prof.getNumTasks(), prof
-						.getCounter(MRCounter.REDUCE_OUTPUT_BYTES, 0l), prof
-						.getCounter(MRCounter.REDUCE_OUTPUT_RECORDS, 0l)));
+						.getCounter(MRCounter.HDFS_BYTES_WRITTEN, 0l), prof
+						.getCounter(MRCounter.REDUCE_OUTPUT_RECORDS, 0l),
+						isCompr));
 			}
 		}
 

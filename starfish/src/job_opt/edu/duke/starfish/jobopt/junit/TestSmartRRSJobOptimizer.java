@@ -10,7 +10,7 @@ import edu.duke.starfish.jobopt.optimizer.SmartRRSJobOptimizer;
 import edu.duke.starfish.jobopt.params.ParameterDescriptor;
 import edu.duke.starfish.profile.profileinfo.ClusterConfiguration;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
-import edu.duke.starfish.profile.profileinfo.utils.Constants;
+import edu.duke.starfish.profile.utils.Constants;
 import edu.duke.starfish.whatif.junit.SampleDataSetModel;
 import edu.duke.starfish.whatif.junit.SampleProfiles;
 import edu.duke.starfish.whatif.oracle.JobProfileOracle;
@@ -26,7 +26,7 @@ public class TestSmartRRSJobOptimizer extends TestCase {
 
 	/**
 	 * Test method for
-	 * {@link edu.duke.starfish.jobopt.optimizer.FullEnumJobOptimizer#findBestConfiguration(Configuration)}
+	 * {@link edu.duke.starfish.jobopt.optimizer.FullEnumJobOptimizer#optimize()}
 	 */
 	@Test
 	public void testWhatIfJobConfGetTime() {
@@ -38,7 +38,7 @@ public class TestSmartRRSJobOptimizer extends TestCase {
 		MRJobProfile tsJobProf = SampleProfiles.getTeraSortJobProfile();
 		Configuration tsConf = SampleProfiles.getTeraSortConfiguration();
 		JobProfileOracle tsOracle = new JobProfileOracle(tsJobProf);
-		IWhatIfScheduler tsScheduler = new BasicFIFOScheduler();
+		IWhatIfScheduler tsScheduler = new BasicFIFOScheduler(cluster);
 
 		// Set the input specs
 		tsConf.setInt(SampleDataSetModel.NUM_MAPPERS, 5);
@@ -52,8 +52,9 @@ public class TestSmartRRSJobOptimizer extends TestCase {
 
 		ParameterDescriptor.setRandomSeed(23);
 		SmartRRSJobOptimizer tsOptimizer = new SmartRRSJobOptimizer(tsOracle,
-				model, cluster, tsScheduler);
-		Configuration tsBestConf = tsOptimizer.findBestConfiguration(tsConf);
+				model, tsScheduler, cluster, tsConf);
+		tsOptimizer.optimize();
+		Configuration tsBestConf = tsOptimizer.getBestConfiguration(true);
 
 		assertNotNull(tsBestConf.getInt(Constants.MR_SORT_MB, 0));
 		assertNotNull(tsBestConf.getFloat(Constants.MR_SPILL_PERC, 0));
@@ -69,7 +70,7 @@ public class TestSmartRRSJobOptimizer extends TestCase {
 		MRJobProfile wcJobProf = SampleProfiles.getWordCountJobProfile();
 		Configuration wcConf = SampleProfiles.getWordCountConfiguration();
 		JobProfileOracle wcOracle = new JobProfileOracle(wcJobProf);
-		IWhatIfScheduler wcScheduler = new BasicFIFOScheduler();
+		IWhatIfScheduler wcScheduler = new BasicFIFOScheduler(cluster);
 
 		// Set the input specs
 		wcConf.setInt(SampleDataSetModel.NUM_MAPPERS, 15);
@@ -83,8 +84,9 @@ public class TestSmartRRSJobOptimizer extends TestCase {
 
 		ParameterDescriptor.setRandomSeed(23);
 		SmartRRSJobOptimizer wcOptimizer = new SmartRRSJobOptimizer(wcOracle,
-				model, cluster, wcScheduler);
-		Configuration wcBestConf = wcOptimizer.findBestConfiguration(wcConf);
+				model, wcScheduler, cluster, wcConf);
+		wcOptimizer.optimize();
+		Configuration wcBestConf = wcOptimizer.getBestConfiguration(true);
 
 		assertNotNull(wcBestConf.get(Constants.MR_SORT_MB));
 		assertNotNull(wcBestConf.get(Constants.MR_SPILL_PERC));

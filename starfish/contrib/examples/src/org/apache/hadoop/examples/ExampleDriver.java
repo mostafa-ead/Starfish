@@ -33,18 +33,14 @@ public class ExampleDriver {
 		int exitCode = -1;
 		ProgramDriver pgd = new ProgramDriver();
 		try {
-			pgd
-					.addClass("wordcount", WordCount.class,
-							"A map/reduce program that counts the words in the input files.");
-			pgd
-					.addClass("grep", Grep.class,
-							"A map/reduce program that counts the matches of a regex in the input.");
-			pgd
-					.addClass("randomwriter", RandomWriter.class,
-							"A map/reduce program that writes 10GB of random data per node.");
-			pgd
-					.addClass("randomtextwriter", RandomTextWriter.class,
-							"A map/reduce program that writes 10GB of random textual data per node.");
+			pgd.addClass("wordcount", WordCount.class,
+					"A map/reduce program that counts the words in the input files.");
+			pgd.addClass("grep", Grep.class,
+					"A map/reduce program that counts the matches of a regex in the input.");
+			pgd.addClass("randomwriter", RandomWriter.class,
+					"A map/reduce program that writes 10GB of random data per node.");
+			pgd.addClass("randomtextwriter", RandomTextWriter.class,
+					"A map/reduce program that writes 10GB of random textual data per node.");
 			pgd.addClass("secondarysort", SecondarySort.class,
 					"An example defining a secondary sort to the reduce.");
 			pgd.addClass("teragen", TeraGen.class,
@@ -52,6 +48,8 @@ public class ExampleDriver {
 			pgd.addClass("terasort", TeraSort.class, "Run the terasort");
 			pgd.addClass("teravalidate", TeraValidate.class,
 					"Checking results of terasort");
+			pgd.addClass("compress", Compress.class,
+					"A map/reduce program that compressed the input.");
 			pgd.driver(argv);
 
 			// Success

@@ -1,5 +1,15 @@
 package edu.duke.starfish.profile.profiler.loaders.tasks;
 
+import static edu.duke.starfish.profile.utils.Constants.MR_COMBINE_CLASS;
+import static edu.duke.starfish.profile.utils.Constants.MR_COMPRESS_MAP_OUT;
+import static edu.duke.starfish.profile.utils.Constants.MR_OUTPUT_FORMAT_CLASS;
+import static edu.duke.starfish.profile.utils.Constants.MR_SFOF;
+import static edu.duke.starfish.profile.utils.Constants.MR_SFTOF;
+import static edu.duke.starfish.profile.utils.Constants.MR_TBOF;
+import static edu.duke.starfish.profile.utils.Constants.MR_TOF;
+import static edu.duke.starfish.profile.utils.Constants.MR_TSOF;
+import static edu.duke.starfish.profile.utils.Constants.PIG_POF;
+
 import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
@@ -9,8 +19,7 @@ import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCostFacto
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCounter;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRStatistics;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRTaskPhase;
-
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.*;
+import edu.duke.starfish.profile.utils.ProfileUtils;
 
 /**
  * This class represents the profile for a single reduce attempt. It contains
@@ -167,16 +176,20 @@ public class MRReduceProfileLoader extends MRTaskProfileLoader {
 
 			// Might not need this...
 			profile.addCounter(MRCounter.HDFS_BYTES_WRITTEN, reduceOutputBytes);
+		} else if (outputFormat.equals(PIG_POF)) {
+			// Equals values
+			reduceOutputBytes = reduceRecords.get(POS_REDUCE_VALUE_BYTE_COUNT)
+					.getValue();
 		} else {
 			// Equals HDFS output (without compression)
-			reduceOutputBytes = (reduceRecords.get(POS_REDUCE_COMPRESS)
-					.getValue() == 0) ? hdfsBytesWritten
-					: (long) (hdfsBytesWritten / DEFAULT_COMPR_RATIO);
+			reduceOutputBytes = isOutputCompressed() ? (long) (hdfsBytesWritten / DEFAULT_COMPR_RATIO)
+					: hdfsBytesWritten;
 		}
 		profile.addCounter(MRCounter.REDUCE_OUTPUT_BYTES, reduceOutputBytes);
 
 		// Calculate and set the network cost
-		profile.addCostFactor(MRCostFactors.NETWORK_COST,
+		profile.addCostFactor(
+				MRCostFactors.NETWORK_COST,
 				averageProfileValueDiffRatios(shuffleRecords,
 						NUM_SHUFFLE_PHASES, POS_SHUFFLE_COPY_MAP_OUTPUT,
 						POS_SHUFFLE_UNCOMPRESS, POS_SHUFFLE_COMPR_BYTE_COUNT));
@@ -187,12 +200,11 @@ public class MRReduceProfileLoader extends MRTaskProfileLoader {
 			comprRatio = averageRecordValueRatios(shuffleRecords,
 					NUM_SHUFFLE_PHASES, POS_SHUFFLE_COMPR_BYTE_COUNT,
 					POS_SHUFFLE_UNCOMPR_BYTE_COUNT);
-			profile
-					.addStatistic(MRStatistics.INTERM_COMPRESS_RATIO,
-							comprRatio);
+			profile.addStatistic(MRStatistics.INTERM_COMPRESS_RATIO, comprRatio);
 
 			// Uncompress cost = time to uncompress / compressed size
-			profile.addCostFactor(MRCostFactors.INTERM_UNCOMPRESS_CPU_COST,
+			profile.addCostFactor(
+					MRCostFactors.INTERM_UNCOMPRESS_CPU_COST,
 					averageRecordValueRatios(shuffleRecords,
 							NUM_SHUFFLE_PHASES, POS_SHUFFLE_UNCOMPRESS,
 							POS_SHUFFLE_COMPR_BYTE_COUNT));
@@ -234,25 +246,25 @@ public class MRReduceProfileLoader extends MRTaskProfileLoader {
 		// Calculate and set the reduce CPU cost
 		if (reduceInputPairs != 0) {
 			// Cost = pure reduce time / number of input records
-			profile.addCostFactor(MRCostFactors.REDUCE_CPU_COST, (reduceRecords
-					.get(POS_REDUCE_REDUCE).getValue() - reduceRecords.get(
-					POS_REDUCE_WRITE).getValue())
-					/ (double) reduceInputPairs);
+			profile.addCostFactor(
+					MRCostFactors.REDUCE_CPU_COST,
+					(reduceRecords.get(POS_REDUCE_REDUCE).getValue() - reduceRecords
+							.get(POS_REDUCE_WRITE).getValue())
+							/ (double) reduceInputPairs);
 		}
 
 		// Calculate and set the output compression ratio and cost
-		if (conf.getBoolean("mapred.output.compress", false) == true) {
+		if (isOutputCompressed()) {
 			if (reduceOutputBytes != 0) {
 				profile.addStatistic(MRStatistics.OUT_COMPRESS_RATIO,
 						hdfsBytesWritten / (double) reduceOutputBytes);
 
 				// Cost = time to compress / uncompressed size
-				profile
-						.addCostFactor(MRCostFactors.OUTPUT_COMPRESS_CPU_COST,
-								(reduceRecords.get(POS_REDUCE_COMPRESS)
-										.getValue() + reduceRecords.get(
-										POS_REDUCE_FINAL_COMPRESS).getValue())
-										/ (double) reduceOutputBytes);
+				profile.addCostFactor(
+						MRCostFactors.OUTPUT_COMPRESS_CPU_COST,
+						(reduceRecords.get(POS_REDUCE_COMPRESS).getValue() + reduceRecords
+								.get(POS_REDUCE_FINAL_COMPRESS).getValue())
+								/ (double) reduceOutputBytes);
 			}
 		}
 
@@ -377,25 +389,20 @@ public class MRReduceProfileLoader extends MRTaskProfileLoader {
 
 		// Calculate the reduce timings
 		profile.addTiming(MRTaskPhase.SETUP, reduceRecords
-				.get(POS_REDUCE_SETUP).getValue()
-				/ NS_PER_MS);
+				.get(POS_REDUCE_SETUP).getValue() / NS_PER_MS);
 
-		profile
-				.addTiming(MRTaskPhase.REDUCE,
-						(reduceRecords.get(POS_REDUCE_READ).getValue()
-								+ reduceRecords.get(POS_REDUCE_REDUCE)
-										.getValue() - reduceRecords.get(
-								POS_REDUCE_WRITE).getValue())
-								/ NS_PER_MS);
+		profile.addTiming(
+				MRTaskPhase.REDUCE,
+				(reduceRecords.get(POS_REDUCE_READ).getValue()
+						+ reduceRecords.get(POS_REDUCE_REDUCE).getValue() - reduceRecords
+						.get(POS_REDUCE_WRITE).getValue()) / NS_PER_MS);
 
-		profile.addTiming(MRTaskPhase.WRITE, (reduceRecords.get(
-				POS_REDUCE_WRITE).getValue() + reduceRecords.get(
-				POS_REDUCE_FINAL_WRITE).getValue())
-				/ NS_PER_MS);
+		profile.addTiming(MRTaskPhase.WRITE,
+				(reduceRecords.get(POS_REDUCE_WRITE).getValue() + reduceRecords
+						.get(POS_REDUCE_FINAL_WRITE).getValue()) / NS_PER_MS);
 
-		profile.addTiming(MRTaskPhase.CLEANUP, reduceRecords.get(
-				POS_REDUCE_CLEANUP).getValue()
-				/ NS_PER_MS);
+		profile.addTiming(MRTaskPhase.CLEANUP,
+				reduceRecords.get(POS_REDUCE_CLEANUP).getValue() / NS_PER_MS);
 	}
 
 	/**
@@ -423,6 +430,19 @@ public class MRReduceProfileLoader extends MRTaskProfileLoader {
 			mergeRecords = EMPTY_RECORDS;
 
 		return true;
+	}
+
+	/**
+	 * Tries to determine whether the output is compressed or not. Not
+	 * guaranteed to identify output compression.
+	 * 
+	 * @return true if output is compressed
+	 */
+	private boolean isOutputCompressed() {
+
+		return reduceRecords.get(POS_REDUCE_COMPRESS).getValue() != 0
+				|| reduceRecords.get(POS_REDUCE_FINAL_COMPRESS).getValue() != 0
+				|| ProfileUtils.isMROutputCompressionOn(conf);
 	}
 
 	/**
@@ -499,21 +519,21 @@ public class MRReduceProfileLoader extends MRTaskProfileLoader {
 
 		int count = 0;
 		for (int i = 0; i < records.size(); i += NUM_MERGE_PHASES) {
-			count += (records.get(POS_MERGE_MERGE).getProcess().equals(
-					MERGE_IN_MEMORY) || records.get(POS_MERGE_MERGE)
+			count += (records.get(POS_MERGE_MERGE).getProcess()
+					.equals(MERGE_IN_MEMORY) || records.get(POS_MERGE_MERGE)
 					.getProcess().equals(MERGE_TO_DISK)) ? 0 : 1;
-			count += records.get(POS_MERGE_READ_WRITE).getProcess().equals(
-					READ_WRITE) ? 0 : 1;
+			count += records.get(POS_MERGE_READ_WRITE).getProcess()
+					.equals(READ_WRITE) ? 0 : 1;
 			count += records.get(POS_MERGE_READ_WRITE_COUNT).getProcess()
 					.equals(READ_WRITE_COUNT) ? 0 : 1;
 			count += records.get(POS_MERGE_COMBINE).getProcess()
 					.equals(COMBINE) ? 0 : 1;
 			count += records.get(POS_MERGE_WRITE).getProcess().equals(WRITE) ? 0
 					: 1;
-			count += records.get(POS_MERGE_UNCOMPRESS).getProcess().equals(
-					UNCOMPRESS) ? 0 : 1;
-			count += records.get(POS_MERGE_COMPRESS).getProcess().equals(
-					COMPRESS) ? 0 : 1;
+			count += records.get(POS_MERGE_UNCOMPRESS).getProcess()
+					.equals(UNCOMPRESS) ? 0 : 1;
+			count += records.get(POS_MERGE_COMPRESS).getProcess()
+					.equals(COMPRESS) ? 0 : 1;
 		}
 
 		if (count != 0)
@@ -547,12 +567,12 @@ public class MRReduceProfileLoader extends MRTaskProfileLoader {
 		int count = 0;
 		count += records.get(POS_SORT_MERGE).getProcess()
 				.equals(MERGE_MAP_DATA) ? 0 : 1;
-		count += records.get(POS_SORT_READ_WRITE).getProcess().equals(
-				READ_WRITE) ? 0 : 1;
-		count += records.get(POS_SORT_READ_WRITE_COUNT).getProcess().equals(
-				READ_WRITE_COUNT) ? 0 : 1;
-		count += records.get(POS_SORT_UNCOMPRESS).getProcess().equals(
-				UNCOMPRESS) ? 0 : 1;
+		count += records.get(POS_SORT_READ_WRITE).getProcess()
+				.equals(READ_WRITE) ? 0 : 1;
+		count += records.get(POS_SORT_READ_WRITE_COUNT).getProcess()
+				.equals(READ_WRITE_COUNT) ? 0 : 1;
+		count += records.get(POS_SORT_UNCOMPRESS).getProcess()
+				.equals(UNCOMPRESS) ? 0 : 1;
 		count += records.get(POS_SORT_COMPRESS).getProcess().equals(COMPRESS) ? 0
 				: 1;
 
@@ -585,37 +605,37 @@ public class MRReduceProfileLoader extends MRTaskProfileLoader {
 		}
 
 		int count = 0;
-		count += records.get(POS_REDUCE_STARTUP_MEM).getProcess().equals(
-				STARTUP_MEM) ? 0 : 1;
+		count += records.get(POS_REDUCE_STARTUP_MEM).getProcess()
+				.equals(STARTUP_MEM) ? 0 : 1;
 		count += records.get(POS_REDUCE_SETUP).getProcess().equals(SETUP) ? 0
 				: 1;
-		count += records.get(POS_REDUCE_SETUP_MEM).getProcess().equals(
-				SETUP_MEM) ? 0 : 1;
+		count += records.get(POS_REDUCE_SETUP_MEM).getProcess()
+				.equals(SETUP_MEM) ? 0 : 1;
 		count += records.get(POS_REDUCE_CLEANUP).getProcess().equals(CLEANUP) ? 0
 				: 1;
-		count += records.get(POS_REDUCE_CLEANUP_MEM).getProcess().equals(
-				CLEANUP_MEM) ? 0 : 1;
-		count += records.get(POS_REDUCE_TOTAL_RUN).getProcess().equals(
-				TOTAL_RUN) ? 0 : 1;
+		count += records.get(POS_REDUCE_CLEANUP_MEM).getProcess()
+				.equals(CLEANUP_MEM) ? 0 : 1;
+		count += records.get(POS_REDUCE_TOTAL_RUN).getProcess()
+				.equals(TOTAL_RUN) ? 0 : 1;
 		count += records.get(POS_REDUCE_READ).getProcess().equals(READ) ? 0 : 1;
-		count += records.get(POS_REDUCE_UNCOMPRESS).getProcess().equals(
-				UNCOMPRESS) ? 0 : 1;
+		count += records.get(POS_REDUCE_UNCOMPRESS).getProcess()
+				.equals(UNCOMPRESS) ? 0 : 1;
 		count += records.get(POS_REDUCE_REDUCE).getProcess().equals(REDUCE) ? 0
 				: 1;
 		count += records.get(POS_REDUCE_WRITE).getProcess().equals(WRITE) ? 0
 				: 1;
 		count += records.get(POS_REDUCE_COMPRESS).getProcess().equals(COMPRESS) ? 0
 				: 1;
-		count += records.get(POS_REDUCE_KEY_BYTE_COUNT).getProcess().equals(
-				KEY_BYTE_COUNT) ? 0 : 1;
-		count += records.get(POS_REDUCE_VALUE_BYTE_COUNT).getProcess().equals(
-				VALUE_BYTE_COUNT) ? 0 : 1;
+		count += records.get(POS_REDUCE_KEY_BYTE_COUNT).getProcess()
+				.equals(KEY_BYTE_COUNT) ? 0 : 1;
+		count += records.get(POS_REDUCE_VALUE_BYTE_COUNT).getProcess()
+				.equals(VALUE_BYTE_COUNT) ? 0 : 1;
 		count += records.get(POS_REDUCE_MEM).getProcess().equals(REDUCE_MEM) ? 0
 				: 1;
 		count += records.get(POS_REDUCE_FINAL_WRITE).getProcess().equals(WRITE) ? 0
 				: 1;
-		count += records.get(POS_REDUCE_FINAL_COMPRESS).getProcess().equals(
-				COMPRESS) ? 0 : 1;
+		count += records.get(POS_REDUCE_FINAL_COMPRESS).getProcess()
+				.equals(COMPRESS) ? 0 : 1;
 
 		if (count != 0)
 			throw new ProfileFormatException(

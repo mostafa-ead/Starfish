@@ -1,7 +1,7 @@
 package edu.duke.starfish.whatif;
 
-import java.io.File;
 import java.io.PrintStream;
+import java.util.Date;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -10,8 +10,9 @@ import org.apache.hadoop.conf.Configuration;
 import edu.duke.starfish.profile.profileinfo.ClusterConfiguration;
 import edu.duke.starfish.profile.profileinfo.execution.jobs.MRJobInfo;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
-import edu.duke.starfish.profile.profileinfo.utils.ProfileUtils;
-import edu.duke.starfish.profile.profiler.XMLProfileParser;
+import edu.duke.starfish.profile.profiler.MRJobLogsManager;
+import edu.duke.starfish.profile.profiler.Profiler;
+import edu.duke.starfish.profile.utils.ProfileUtils;
 import edu.duke.starfish.whatif.data.DataSetModel;
 import edu.duke.starfish.whatif.data.RealAvgDataSetModel;
 import edu.duke.starfish.whatif.oracle.JobProfileOracle;
@@ -37,10 +38,10 @@ public class WhatIfEngine {
 	 * Lists all the question the What-if Engine can answer
 	 */
 	public static enum WhatIfQuestion {
-		JOB_TIME, // The job execution time
-		JOB_DETAILS, // The job statistical details
-		JOB_PROFILE, // The job profile
-		TIMELINE, // The task timelne
+		TIME, // The job execution time
+		DETAILS, // The job statistical details
+		PROFILE, // The job profile
+		TIMELINE, // The task timeline
 		MAPPERS, // The map tasks details
 		REDUCERS; // The reduce tasks details
 
@@ -64,11 +65,11 @@ public class WhatIfEngine {
 		 */
 		public static WhatIfQuestion getQuestion(String question) {
 			if (question.equals("profile")) {
-				return JOB_PROFILE;
-			} else if (question.equals("job_time")) {
-				return JOB_TIME;
+				return PROFILE;
+			} else if (question.equals("time")) {
+				return TIME;
 			} else if (question.equals("details")) {
-				return JOB_DETAILS;
+				return DETAILS;
 			} else if (question.equals("timeline")) {
 				return TIMELINE;
 			} else if (question.equals("mappers")) {
@@ -93,7 +94,6 @@ public class WhatIfEngine {
 	private JobProfileOracle jobOracle; // The job profile oracle
 	private DataSetModel dataModel; // The data model
 	private IWhatIfScheduler scheduler; // The task scheduler simulator
-	private ClusterConfiguration cluster; // The cluster setup
 
 	/**
 	 * Constructor
@@ -104,18 +104,12 @@ public class WhatIfEngine {
 	 *            the data set model
 	 * @param scheduler
 	 *            the task scheduler
-	 * @param cluster
-	 *            the cluster setup
-	 * @param conf
-	 *            the job configuration
 	 */
 	public WhatIfEngine(JobProfileOracle jobOracle, DataSetModel dataModel,
-			IWhatIfScheduler scheduler, ClusterConfiguration cluster,
-			Configuration conf) {
+			IWhatIfScheduler scheduler) {
 		this.jobOracle = jobOracle;
 		this.dataModel = dataModel;
 		this.scheduler = scheduler;
-		this.cluster = cluster;
 	}
 
 	/* ***************************************************************
@@ -125,7 +119,9 @@ public class WhatIfEngine {
 
 	/**
 	 * Returns the job execution time if this particular job configuration is
-	 * used
+	 * used.
+	 * 
+	 * Also see {@link WhatIfEngine#whatIfJobConfGetTime(Date, Configuration)}
 	 * 
 	 * @param conf
 	 *            the job configuration
@@ -133,13 +129,36 @@ public class WhatIfEngine {
 	 */
 	public double whatIfJobConfGetTime(Configuration conf) {
 
+		return whatIfJobConfGetTime(new Date(), conf);
+	}
+
+	/**
+	 * Returns the job execution time if this particular job configuration is
+	 * used.
+	 * 
+	 * The specified submission time will be used by the scheduler when
+	 * simulating the job execution. This method is useful when you want to ask
+	 * what-if questions for multiple jobs that will be executed on the same
+	 * cluster.
+	 * 
+	 * @param submissionTime
+	 *            the job submission time
+	 * @param conf
+	 *            the job configuration
+	 * @return the job execution time (in ms)
+	 */
+	public double whatIfJobConfGetTime(Date submissionTime, Configuration conf) {
+
 		MRJobProfile jobProf = jobOracle.whatif(conf, dataModel);
-		return scheduler.scheduleJobGetTime(cluster, jobProf, conf);
+		return scheduler.scheduleJobGetTime(submissionTime, jobProf, conf);
 	}
 
 	/**
 	 * Returns the job representation if this particular job configuration is
-	 * used
+	 * used.
+	 * 
+	 * Also see
+	 * {@link WhatIfEngine#whatIfJobConfGetJobInfo(Date, Configuration)}
 	 * 
 	 * @param conf
 	 *            the job configuration
@@ -147,8 +166,29 @@ public class WhatIfEngine {
 	 */
 	public MRJobInfo whatIfJobConfGetJobInfo(Configuration conf) {
 
+		return whatIfJobConfGetJobInfo(new Date(), conf);
+	}
+
+	/**
+	 * Returns the job representation if this particular job configuration is
+	 * used.
+	 * 
+	 * The specified submission time will be used by the scheduler when
+	 * simulating the job execution. This method is useful when you want to ask
+	 * what-if questions for multiple jobs that will be executed on the same
+	 * cluster.
+	 * 
+	 * @param submissionTime
+	 *            the job submission time
+	 * @param conf
+	 *            the job configuration
+	 * @return the job info
+	 */
+	public MRJobInfo whatIfJobConfGetJobInfo(Date submissionTime,
+			Configuration conf) {
+
 		MRJobProfile jobProf = jobOracle.whatif(conf, dataModel);
-		return scheduler.scheduleJobGetJobInfo(cluster, jobProf, conf);
+		return scheduler.scheduleJobGetJobInfo(submissionTime, jobProf, conf);
 	}
 
 	/* ***************************************************************
@@ -162,22 +202,31 @@ public class WhatIfEngine {
 	 * 
 	 * @param question
 	 *            the what-if question to ask
-	 * @param profileFile
-	 *            the job profile XML file
+	 * @param jobProfileId
+	 *            the job id of the profiled job
 	 * @param conf
 	 *            the configuration
 	 */
 	public static void processJobWhatIfRequest(String question,
-			String profileFile, Configuration conf) {
+			String jobProfileId, Configuration conf) {
 
 		// Note: we must surround the entire method to catch all exceptions
 		// because BTrace cannot catch them
 		try {
+			// Get the logs manager
+			MRJobLogsManager manager = new MRJobLogsManager();
+			String resultsDir = conf.get(Profiler.PROFILER_OUTPUT_DIR);
+			manager.setResultsDir(resultsDir);
+
 			// Create the default parameters for the What-if Engine
 			DataSetModel dataModel = new RealAvgDataSetModel();
 			ClusterConfiguration cluster = new ClusterConfiguration(conf);
-			MRJobProfile sourceProf = XMLProfileParser
-					.importJobProfile(new File(profileFile));
+			MRJobProfile sourceProf = manager.getMRJobProfile(jobProfileId);
+
+			if (sourceProf == null) {
+				LOG.error("Unable to find the profile for " + jobProfileId);
+				return;
+			}
 
 			if (WhatIfQuestion.isValid(question)) {
 
@@ -215,22 +264,22 @@ public class WhatIfEngine {
 
 		// Build the required what-if components
 		JobProfileOracle jobOracle = new JobProfileOracle(sourceProf);
-		BasicFIFOScheduler scheduler = new BasicFIFOScheduler();
+		BasicFIFOScheduler scheduler = new BasicFIFOScheduler(cluster);
 
 		// Ask the what-if question
 		WhatIfEngine whatifEngine = new WhatIfEngine(jobOracle, dataModel,
-				scheduler, cluster, conf);
+				scheduler);
 		MRJobInfo mrJob = whatifEngine.whatIfJobConfGetJobInfo(conf);
 
 		// Answer the question
 		switch (question) {
-		case JOB_PROFILE:
+		case PROFILE:
 			mrJob.getProfile().printProfile(out, false);
 			break;
-		case JOB_TIME:
+		case TIME:
 			out.println("Execution Time (ms):\t" + mrJob.getDuration());
 			break;
-		case JOB_DETAILS:
+		case DETAILS:
 			ProfileUtils.printMRJobDetails(out, mrJob);
 			break;
 		case TIMELINE:

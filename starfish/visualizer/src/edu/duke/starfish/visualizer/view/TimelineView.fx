@@ -17,7 +17,8 @@ import javafx.util.Math;
 
 import edu.duke.starfish.profile.profileinfo.execution.MRExecutionStatus;
 import edu.duke.starfish.profile.profileinfo.execution.mrtaskattempts.*;
-import edu.duke.starfish.profile.profileinfo.utils.ProfileUtils;
+import edu.duke.starfish.profile.utils.GeneralUtils;
+import edu.duke.starfish.profile.utils.ProfileUtils;
 
 import edu.duke.starfish.visualizer.model.timeline.*;
 import edu.duke.starfish.visualizer.view.custom.BorderGroup;
@@ -253,21 +254,21 @@ class Task extends CustomNode {
 	    
 		if (attempt instanceof MRMapAttemptInfo) then {
 		    toolTipContent = "Map Attempt:  {attempt.getTruncatedTaskId()}";
-			toolTipContent = "{toolTipContent}\nDuration:  {ProfileUtils.getFormattedDuration(attempt.getDuration())}";
+			toolTipContent = "{toolTipContent}\nDuration:  {GeneralUtils.getFormattedDuration(attempt.getDuration())}";
 			toolTipContent = "{toolTipContent}\nLocality:  {(attempt as MRMapAttemptInfo).getDataLocality().getDescription()}";
 			
 	    } else if (attempt instanceof MRReduceAttemptInfo) {
 	        toolTipContent = "Reduce Attempt:  {attempt.getTruncatedTaskId()}";
-	        toolTipContent = "{toolTipContent}\nShuffle Duration:  {ProfileUtils.getFormattedDuration((attempt as MRReduceAttemptInfo).getShuffleDuration())}";
-	        toolTipContent = "{toolTipContent}\nTotal Duration:  {ProfileUtils.getFormattedDuration(attempt.getDuration())}";
+	        toolTipContent = "{toolTipContent}\nShuffle Duration:  {GeneralUtils.getFormattedDuration((attempt as MRReduceAttemptInfo).getShuffleDuration())}";
+	        toolTipContent = "{toolTipContent}\nTotal Duration:  {GeneralUtils.getFormattedDuration(attempt.getDuration())}";
 	        
 		} else if(attempt instanceof MRSetupAttemptInfo) then {
 		    toolTipContent = "Setup Attempt:  {attempt.getTruncatedTaskId()}";
-		    toolTipContent = "{toolTipContent}\nDuration:  {ProfileUtils.getFormattedDuration(attempt.getDuration())}";
+		    toolTipContent = "{toolTipContent}\nDuration:  {GeneralUtils.getFormattedDuration(attempt.getDuration())}";
 		     
 		} else if (attempt instanceof MRCleanupAttemptInfo) then {
 		    toolTipContent = "Cleanup Attempt:  {attempt.getTruncatedTaskId()}";
-		    toolTipContent = "{toolTipContent}\nDuration:  {ProfileUtils.getFormattedDuration(attempt.getDuration())}";
+		    toolTipContent = "{toolTipContent}\nDuration:  {GeneralUtils.getFormattedDuration(attempt.getDuration())}";
 		    
 		}
 	    
@@ -413,18 +414,18 @@ public class TimelineView extends AppView {
 		        	        content: [
 			        	         Text {
 					        	     font: COMMON_FONT_13
-					        	     content: "{ProfileUtils.getFormattedDuration(
+					        	     content: "{GeneralUtils.getFormattedDuration(
 					        	     				job.getDuration())}"
 			        	         }
 			        	         Text {
 					        	     font: COMMON_FONT_13
-					        	     content: "{ProfileUtils.getFormattedDuration(
+					        	     content: "{GeneralUtils.getFormattedDuration(
 					        	     				ProfileUtils.calculateDurationAverage(
 					        	     					job.getMapTasks()))}"
 			        	         }
 			        	         Text {
 					        	     font: COMMON_FONT_13
-					        	     content: "{ProfileUtils.getFormattedDuration(
+					        	     content: "{GeneralUtils.getFormattedDuration(
 					        	     				ProfileUtils.calculateDurationAverage(
 					        	     					job.getReduceTasks()))}"
 			        	         }

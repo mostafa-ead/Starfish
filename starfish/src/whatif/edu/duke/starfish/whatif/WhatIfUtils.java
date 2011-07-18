@@ -5,19 +5,14 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-import org.apache.hadoop.conf.Configuration;
-
 import edu.duke.starfish.profile.profileinfo.execution.DataLocality;
 import edu.duke.starfish.profile.profileinfo.execution.MRExecutionStatus;
 import edu.duke.starfish.profile.profileinfo.execution.jobs.MRJobInfo;
 import edu.duke.starfish.profile.profileinfo.execution.mrtaskattempts.MRMapAttemptInfo;
-import edu.duke.starfish.profile.profileinfo.execution.mrtaskattempts.MRReduceAttemptInfo;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRMapProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRReduceProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCounter;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRStatistics;
-import edu.duke.starfish.profile.profileinfo.metrics.DataTransfer;
-import edu.duke.starfish.profile.profileinfo.utils.Constants;
 import edu.duke.starfish.whatif.data.MapInputSpecs;
 
 /**
@@ -40,8 +35,8 @@ public class WhatIfUtils {
 		// Get the map attempts
 		List<MRMapAttemptInfo> attempts = job
 				.getMapAttempts(MRExecutionStatus.SUCCESS);
-		List<MapInputSpecs> specs = new ArrayList<MapInputSpecs>(attempts
-				.size());
+		List<MapInputSpecs> specs = new ArrayList<MapInputSpecs>(
+				attempts.size());
 		if (attempts.size() == 0)
 			return specs;
 
@@ -116,87 +111,6 @@ public class WhatIfUtils {
 	}
 
 	/**
-	 * Generate the data transfers among the task attempts that occur during the
-	 * execution of a MapReduce job. The data transfers are placed in the
-	 * provided job object.
-	 * 
-	 * This method assumes that the data transfered from each map attempt is
-	 * proportional to the amount of data shuffled to each reduce attempt. For
-	 * example, suppose the job run 2 reduce tasks and that they received 500MB
-	 * and 300MB data respectively. If one map produced 160MB of data (amount of
-	 * data stored on local disk after combiner/compression), then we assume
-	 * 100MB (=160*5/8) were shuffled to the first reducer, and 60MB (=160*3/8)
-	 * to the second reducer.
-	 * 
-	 * 
-	 * @param job
-	 *            the MapReduce job
-	 * @param conf
-	 *            the configuration
-	 * @return true if the data transfers were generated
-	 */
-	public static boolean generateDataTransfers(MRJobInfo job,
-			Configuration conf) {
-
-		job.getDataTransfers().clear();
-		List<MRReduceAttemptInfo> redAttempts = job
-				.getReduceAttempts(MRExecutionStatus.SUCCESS);
-		if (redAttempts.size() == 0) {
-			// This is a map-only job, no data transfers
-			return false;
-		}
-
-		// Calculate the total amount of shuffle data
-		double totalShuffle = 0d;
-		for (MRReduceAttemptInfo redAttempt : redAttempts) {
-			totalShuffle += redAttempt.getProfile().getCounter(
-					MRCounter.REDUCE_SHUFFLE_BYTES, 0l);
-		}
-		if (totalShuffle == 0) {
-			// The information is not available
-			return false;
-		}
-
-		// Calculate the ratio of data that will go to each reducer
-		double[] redRatio = new double[redAttempts.size()];
-		for (int i = 0; i < redRatio.length; ++i) {
-			redRatio[i] = redAttempts.get(0).getProfile().getCounter(
-					MRCounter.REDUCE_SHUFFLE_BYTES, 0l)
-					/ totalShuffle;
-		}
-
-		// Is the map output data compressed?
-		long comprSize = 0l;
-		long uncomprSize = 0l;
-		boolean isCompr = conf.getBoolean(Constants.MR_COMPRESS_MAP_OUT, false);
-		double comprRatio = job.getAdjProfile().getAvgReduceProfile()
-				.getStatistic(MRStatistics.INTERM_COMPRESS_RATIO, 1d);
-
-		// Create a new data transfer from each map to each reducer
-		List<MRMapAttemptInfo> mapAttempts = job
-				.getMapAttempts(MRExecutionStatus.SUCCESS);
-		for (MRMapAttemptInfo mapAttempt : mapAttempts) {
-			long outSize = mapAttempt.getProfile().getCounter(
-					MRCounter.FILE_BYTES_WRITTEN, 0l)
-					- mapAttempt.getProfile().getCounter(
-							MRCounter.FILE_BYTES_READ, 0l);
-
-			for (int i = 0; i < redRatio.length; ++i) {
-				comprSize = (long) Math.round(outSize * redRatio[i]);
-				if (isCompr)
-					uncomprSize = (long) Math.round(comprSize / comprRatio);
-				else
-					uncomprSize = comprSize;
-
-				job.addDataTransfer(new DataTransfer(mapAttempt, redAttempts
-						.get(i), comprSize, uncomprSize));
-			}
-		}
-
-		return true;
-	}
-
-	/**
 	 * Get the memory required by a map task in terms of bytes
 	 * 
 	 * @param mapProfile
@@ -235,8 +149,7 @@ public class WhatIfUtils {
 				+ redProfile.getStatistic(MRStatistics.CLEANUP_MEM, 0d);
 
 		memory += redProfile.getStatistic(MRStatistics.REDUCE_MEM_PER_RECORD,
-				0d)
-				* redProfile.getCounter(MRCounter.REDUCE_INPUT_RECORDS, 0l);
+				0d) * redProfile.getCounter(MRCounter.REDUCE_INPUT_RECORDS, 0l);
 
 		return Math.round(memory);
 	}

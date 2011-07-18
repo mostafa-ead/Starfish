@@ -14,7 +14,7 @@ import edu.duke.starfish.jobopt.optimizer.JobOptimizer;
  * MapReduce job.
  * 
  * In order to optimize the job, the job must have submitted the job using the
- * job's method 'waitForCompletion'.
+ * using the job's methods 'submit' or 'waitForCompletion'.
  * 
  * @author hero
  */
@@ -22,57 +22,27 @@ import edu.duke.starfish.jobopt.optimizer.JobOptimizer;
 public class BTraceJobOptimizer {
 	
 	@OnMethod(clazz = "org.apache.hadoop.mapreduce.Job", 
-			method = "waitForCompletion", 
+			method = "submit", 
 			location = @Location(value = Kind.ENTRY))
-	public static void onJob_waitForCompletion_entry(@Self Job job) {
+	public static void onJob_submit_entry(@Self Job job) {
 		
 		// Set the user-specified configuration options
 		Configuration conf = job.getConfiguration();
-
-		// Set the optimizer type
-		if (conf.get("starfish.job.optimizer.type") == null)
-			conf.set("starfish.job.optimizer.type",
-					System.getProperty("starfish.job.optimizer.type"));
-
-		// Set the task scheduler
-		if (conf.get("starfish.whatif.task.scheduler") == null)
-			conf.set("starfish.whatif.task.scheduler",
-					System.getProperty("starfish.whatif.task.scheduler"));
-
-		// Set the excluded parameters
-		if (conf.get("starfish.job.optimizer.exclude.parameters") == null)
-			conf.set("starfish.job.optimizer.exclude.parameters",
-					System.getProperty("starfish.job.optimizer.exclude.parameters"));
-
-		// Set the output location
-		if (conf.get("starfish.job.optimizer.output") == null)
-			conf.set("starfish.job.optimizer.output",
-					System.getProperty("starfish.job.optimizer.output"));		
+		JobOptimizer.loadOptimizationSystemProperties(conf);
 		
-		// Set the number of values per parameter (for full and smart_full optimizers)
-		if (conf.get("starfish.job.optimizer.num.values.per.param") == null)
-			conf.set("starfish.job.optimizer.num.values.per.param",
-					System.getProperty("starfish.job.optimizer.num.values.per.param"));
-
-		// Set the flag for using random values (for full and smart_full optimizers)
-		if (conf.get("starfish.job.optimizer.use.random.values") == null)
-			conf.set("starfish.job.optimizer.use.random.values",
-					System.getProperty("starfish.job.optimizer.use.random.values"));
-
 		// Find the optimal configuration
-		String mode = System.getProperty("starfish.job.optimizer.mode");
-		String profileFile = System
-				.getProperty("starfish.job.optimizer.profile.file");
+		String mode = System.getProperty(JobOptimizer.JOB_OPT_MODE);
+		String profileId = System.getProperty(JobOptimizer.JOB_OPT_PROFILE_ID);
 
-		if (mode.equalsIgnoreCase("run")) {
+		if (mode.equalsIgnoreCase(JobOptimizer.JOB_OPT_RUN)) {
 			// Optimize the job
-			if (!JobOptimizer.processJobOptimizationRequest(job, profileFile)) {
+			if (!JobOptimizer.processJobOptimizationRequest(job, profileId)) {
 				System.exit(0);
 			}
 
-		} else if (mode.equalsIgnoreCase("recommend")) {
+		} else if (mode.equalsIgnoreCase(JobOptimizer.JOB_OPT_RECOMMEND)) {
 			// Recommend a configuration
-			JobOptimizer.processJobRecommendationRequest(job, profileFile);
+			JobOptimizer.processJobRecommendationRequest(job, profileId);
 			System.exit(0);
 
 		} else {

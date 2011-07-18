@@ -1,6 +1,6 @@
 package edu.duke.starfish.whatif.oracle;
 
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.*;
+import static edu.duke.starfish.profile.utils.Constants.*;
 
 import org.apache.hadoop.conf.Configuration;
 
@@ -9,7 +9,7 @@ import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCostFacto
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCounter;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRStatistics;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRTaskPhase;
-import edu.duke.starfish.profile.profileinfo.utils.ProfileUtils;
+import edu.duke.starfish.profile.utils.ProfileUtils;
 import edu.duke.starfish.whatif.data.ReduceShuffleSpecs;
 
 /**
@@ -101,8 +101,8 @@ public class ReduceProfileOracle extends TaskProfileOracle {
 							+ sourceProf.getTaskId() + " is empty!");
 		}
 
-		this.virtualProf = new MRReduceProfile(getVirtualTaskId(sourceProf
-				.getTaskId()));
+		this.virtualProf = new MRReduceProfile(
+				getVirtualTaskId(sourceProf.getTaskId()));
 		virtualProf.setNumTasks(shuffleSpecs.getNumReducers());
 		this.conf = conf;
 		this.shuffleSpecs = shuffleSpecs;
@@ -141,7 +141,7 @@ public class ReduceProfileOracle extends TaskProfileOracle {
 		useCombiner = conf.get(MR_COMBINE_CLASS) != null
 				&& conf.getBoolean(STARFISH_USE_COMBINER, true);
 		useIntermCompr = conf.getBoolean(MR_COMPRESS_MAP_OUT, false);
-		useOutputCompr = conf.getBoolean(MR_COMPRESS_OUT, false);
+		useOutputCompr = ProfileUtils.isMROutputCompressionOn(conf);
 	}
 
 	/**
@@ -204,8 +204,8 @@ public class ReduceProfileOracle extends TaskProfileOracle {
 	private void calcVirtualReduceCountersShuffleSortPhase() {
 
 		// Get the data shuffled to a single reduce
-		virtualProf.addCounter(MRCounter.REDUCE_SHUFFLE_BYTES, shuffleSpecs
-				.getSize());
+		virtualProf.addCounter(MRCounter.REDUCE_SHUFFLE_BYTES,
+				shuffleSpecs.getSize());
 
 		// Calculate segment information (segment = output partition from 1 map)
 		int numMappers = shuffleSpecs.getNumMappers();
@@ -224,11 +224,9 @@ public class ReduceProfileOracle extends TaskProfileOracle {
 		// The shuffled data are placed either in memory buffer or on disk
 		long taskMem = ProfileUtils.getTaskMemory(conf);
 		double shuffleBufferSize = conf.getFloat(MR_SHUFFLE_IN_BUFF_PERC,
-				DEF_SHUFFLE_IN_BUFF_PERC)
-				* taskMem;
+				DEF_SHUFFLE_IN_BUFF_PERC) * taskMem;
 		double mergeSizeThr = conf.getFloat(MR_SHUFFLE_MERGE_PERC,
-				DEF_SHUFFLE_MERGE_PERC)
-				* shuffleBufferSize;
+				DEF_SHUFFLE_MERGE_PERC) * shuffleBufferSize;
 		long inMemMergeThr = conf.getLong(MR_INMEM_MERGE, DEF_INMEM_MERGE);
 
 		// When buffer reaches size of mergeSizeThr or number of segments
@@ -545,8 +543,8 @@ public class ReduceProfileOracle extends TaskProfileOracle {
 	private void calcVirtualReduceTimingsReducePhase() {
 
 		// Calculate and set SETUP
-		virtualProf.addTiming(MRTaskPhase.SETUP, sourceProf.getTiming(
-				MRTaskPhase.SETUP, 0d));
+		virtualProf.addTiming(MRTaskPhase.SETUP,
+				sourceProf.getTiming(MRTaskPhase.SETUP, 0d));
 
 		// Calculate and set REDUCE
 		double readIO = bytesReadInReduce
@@ -570,8 +568,8 @@ public class ReduceProfileOracle extends TaskProfileOracle {
 				/ NS_PER_MS);
 
 		// Calculate and set CLEANUP
-		virtualProf.addTiming(MRTaskPhase.CLEANUP, sourceProf.getTiming(
-				MRTaskPhase.CLEANUP, 0d));
+		virtualProf.addTiming(MRTaskPhase.CLEANUP,
+				sourceProf.getTiming(MRTaskPhase.CLEANUP, 0d));
 	}
 
 	/**

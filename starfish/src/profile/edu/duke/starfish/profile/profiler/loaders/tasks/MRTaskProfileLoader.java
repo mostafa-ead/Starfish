@@ -327,13 +327,18 @@ public abstract class MRTaskProfileLoader {
 		String[] tokens;
 		ProfileToken token;
 		try {
-			line = br.readLine();
-			while (line != null) {
+			while ((line = br.readLine()) != null) {
 
 				// Check for and ignore a memory profile
 				tokens = line.split(TAB);
 				if (tokens[0].equals(SETUP))
 					return false;
+
+				if (!ProfileToken.isValid(tokens[0])) {
+					// Output error and skip invalid lines
+					System.err.println("Invalid profile line: " + line);
+					continue;
+				}
 
 				// Create the profile records
 				token = ProfileToken.valueOf(tokens[0]);
@@ -343,8 +348,6 @@ public abstract class MRTaskProfileLoader {
 				records.get(token).add(
 						new ProfileRecord(token, tokens[1], Long
 								.parseLong(tokens[2])));
-
-				line = br.readLine();
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -472,7 +475,25 @@ public abstract class MRTaskProfileLoader {
 		SHUFFLE, // The shuffle phase in the reduce task
 		SORT, // The sort phase in the reduce task
 		REDUCE, // The reduce phase in the reduce task
-		MEMORY, // The memory traces
+		MEMORY; // The memory traces
+
+		/**
+		 * Check if input token is a valid ProfileToken
+		 * 
+		 * @param token
+		 *            the profile token
+		 * @return true if it is a valid token
+		 */
+		private static boolean isValid(String token) {
+
+			try {
+				ProfileToken.valueOf(token);
+			} catch (RuntimeException e) {
+				return false;
+			}
+
+			return true;
+		}
 	}
 
 	/**

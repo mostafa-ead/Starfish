@@ -413,7 +413,7 @@ public class ProfileView extends AppView {
 
         // Get the number of profiles
         var numProfs = avgMapProfileList.size();
-        if (avgRedProfile != null) {
+        if (avgRedProfile != null and not avgRedProfile.isEmpty()) {
             numProfs = numProfs + 1;
         }
 
@@ -431,7 +431,7 @@ public class ProfileView extends AppView {
 		}
 		
 		// Populate the reduce profile table
-		if (avgRedProfile != null) {
+		if (avgRedProfile != null and not avgRedProfile.isEmpty()) {
 		    var title = "Representative\nReduce Phase Timings";
 		    insert createBarChart(avgRedProfile, title, false) into profileTimes;
 		}
@@ -537,7 +537,7 @@ public class ProfileView extends AppView {
 
         // Get the number of profiles
         var numProfs = avgMapProfileList.size();
-        if (avgRedProfile != null) {
+        if (avgRedProfile != null and not avgRedProfile.isEmpty()) {
             numProfs = numProfs + 1;
         }
 
@@ -559,7 +559,7 @@ public class ProfileView extends AppView {
 		}
 		
 		// Populate the reduce profile table
-		if (avgRedProfile != null) {
+		if (avgRedProfile != null and not avgRedProfile.isEmpty()) {
 		    var title = "Representative Reduce Task Profile";
 		    insert createProfileTable(avgRedProfile, title, 281.7, numProfs) into profileTables;
 		}

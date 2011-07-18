@@ -20,6 +20,7 @@ public class JobOutputSpecs {
 	private int numTasks; // The number of map or reduce tasks
 	private long size; // The output size of a single task
 	private long records; // The number of records output by a single task
+	private boolean isCompressed; // Whether the output is compressed
 
 	/**
 	 * Constructor
@@ -30,11 +31,15 @@ public class JobOutputSpecs {
 	 *            the output size
 	 * @param records
 	 *            the output records
+	 * @param isCompressed
+	 *            whether the output is compressed
 	 */
-	public JobOutputSpecs(int numTasks, long size, long records) {
+	public JobOutputSpecs(int numTasks, long size, long records,
+			boolean isCompressed) {
 		this.numTasks = numTasks;
 		this.size = size;
 		this.records = records;
+		this.isCompressed = isCompressed;
 	}
 
 	/* ***************************************************************
@@ -64,6 +69,13 @@ public class JobOutputSpecs {
 	}
 
 	/**
+	 * @return true if the output is compressed
+	 */
+	public boolean isCompressed() {
+		return isCompressed;
+	}
+
+	/**
 	 * @param numTasks
 	 *            the number of tasks to set
 	 */
@@ -85,6 +97,14 @@ public class JobOutputSpecs {
 	 */
 	public void setRecords(long records) {
 		this.records = records;
+	}
+
+	/**
+	 * @param isCompressed
+	 *            the output is compressed
+	 */
+	public void setCompressed(boolean isCompressed) {
+		this.isCompressed = isCompressed;
 	}
 
 	/* ***************************************************************

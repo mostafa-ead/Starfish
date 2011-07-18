@@ -1,6 +1,6 @@
 package edu.duke.starfish.whatif.oracle;
 
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.*;
+import static edu.duke.starfish.profile.utils.Constants.*;
 
 import org.apache.hadoop.conf.Configuration;
 

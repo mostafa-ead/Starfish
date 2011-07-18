@@ -1,15 +1,16 @@
-package edu.duke.starfish.profile.profileinfo.utils;
+package edu.duke.starfish.profile.utils;
 
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.DEF_TASK_MEM;
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_JAVA_OPTS;
+import static edu.duke.starfish.profile.utils.Constants.*;
 
 import java.io.PrintStream;
 import java.text.NumberFormat;
+import java.util.Date;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.util.StringUtils;
 
 import edu.duke.starfish.profile.profileinfo.execution.MRExecutionStatus;
 import edu.duke.starfish.profile.profileinfo.execution.jobs.MRJobInfo;
@@ -25,6 +26,8 @@ import edu.duke.starfish.profile.profileinfo.execution.profile.MRTaskProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCostFactors;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCounter;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRStatistics;
+import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRTaskPhase;
+import edu.duke.starfish.profile.profileinfo.metrics.DataTransfer;
 
 /**
  * Contains utility methods that manipulate the profileinfo classes.
@@ -37,11 +40,6 @@ public class ProfileUtils {
 	 * DATA MEMBERS
 	 * ***************************************************************
 	 */
-	private static int MS_IN_SEC = 1000;
-	private static int SEC_IN_MIN = 60;
-	private static int MIN_IN_HR = 60;
-	private static int SEC_IN_HR = 3600;
-
 	private static final String TAB = "\t";
 
 	private static final Pattern jvmMem = Pattern
@@ -151,172 +149,145 @@ public class ProfileUtils {
 	}
 
 	/**
-	 * Converts a line containing glob into the corresponding regex.
+	 * Generate the data transfers among the task attempts that occur during the
+	 * execution of a MapReduce job. The data transfers are placed in the
+	 * provided job object.
 	 * 
-	 * Note: The string.match method matches the entire string by default. If
-	 * this method will be used to match an entire string, set matchAll to true.
-	 * If this method will be used to match a substring of a string, set
-	 * matchAll to false.
+	 * This method assumes that the data transfered from each map attempt is
+	 * proportional to the amount of data shuffled to each reduce attempt. For
+	 * example, suppose the job run 2 reduce tasks and that they received 500MB
+	 * and 300MB data respectively. If one map produced 160MB of data (amount of
+	 * data stored on local disk after combiner/compression), then we assume
+	 * 100MB (=160*5/8) were shuffled to the first reducer, and 60MB (=160*3/8)
+	 * to the second reducer.
 	 * 
-	 * @param line
-	 *            the input glob
-	 * @param matchAll
-	 *            whether the regex returned is intented to match an entire
-	 *            string or a substring
-	 * @return the corresponding regex
+	 * The duration of the data transfers is determined based on the shuffle
+	 * time and the amount of data shuffled on each reducer.
+	 * 
+	 * @param job
+	 *            the MapReduce job
+	 * @param conf
+	 *            the configuration
+	 * @return true if the data transfers were generated
 	 */
-	public static String convertGlobToRegEx(String line, boolean matchAll) {
+	public static boolean generateDataTransfers(MRJobInfo job,
+			Configuration conf) {
 
-		line = line.trim();
-		int strLen = line.length();
-		StringBuilder sb = new StringBuilder(strLen);
+		job.getDataTransfers().clear();
+		List<MRReduceAttemptInfo> redAttempts = job
+				.getReduceAttempts(MRExecutionStatus.SUCCESS);
+		int numReducers = redAttempts.size();
+		if (numReducers == 0) {
+			// This is a map-only job, no data transfers
+			return false;
+		}
 
-		if (!matchAll)
-			sb.append(".*");
+		// Calculate the total amount of shuffle data
+		double totalShuffle = 0d;
+		double[] redSizeRatio = new double[numReducers];
+		double[] redTimeRatio = new double[numReducers];
 
-		boolean escaping = false;
-		int inCurlies = 0;
-		for (char currentChar : line.toCharArray()) {
-			switch (currentChar) {
-			case '*':
-				if (escaping)
-					sb.append("\\*");
+		for (int i = 0; i < numReducers; ++i) {
+			redSizeRatio[i] = redAttempts.get(i).getProfile()
+					.getCounter(MRCounter.REDUCE_SHUFFLE_BYTES, 0l);
+			redTimeRatio[i] = (redSizeRatio[i] != 0) ? (redAttempts.get(i)
+					.getProfile().getTiming(MRTaskPhase.SHUFFLE, 0d) / redSizeRatio[i])
+					: 0d;
+			totalShuffle += redSizeRatio[i];
+		}
+
+		if (totalShuffle == 0) {
+			// The information is not available
+			return false;
+		}
+
+		// Calculate the ratio of data that will go to each reducer
+		for (int i = 0; i < numReducers; ++i) {
+			redSizeRatio[i] = redSizeRatio[i] / totalShuffle;
+		}
+
+		// Is the map output data compressed?
+		long comprSize = 0l;
+		long uncomprSize = 0l;
+		boolean isCompr = conf.getBoolean(Constants.MR_COMPRESS_MAP_OUT, false);
+		double comprRatio = job.getAdjProfile().getAvgReduceProfile()
+				.getStatistic(MRStatistics.INTERM_COMPRESS_RATIO, 1d);
+
+		// Create a new data transfer from each map to each reducer
+		List<MRMapAttemptInfo> mapAttempts = job
+				.getMapAttempts(MRExecutionStatus.SUCCESS);
+		for (MRMapAttemptInfo mapAttempt : mapAttempts) {
+			long outSize = mapAttempt.getProfile().getCounter(
+					MRCounter.MAP_OUTPUT_MATERIALIZED_BYTES, 0l);
+
+			for (int i = 0; i < numReducers; ++i) {
+				// Create a new map to reduce transfer
+				comprSize = (long) Math.round(outSize * redSizeRatio[i]);
+				if (isCompr)
+					uncomprSize = (long) Math.round(comprSize / comprRatio);
 				else
-					sb.append(".*");
-				escaping = false;
-				break;
-			case '?':
-				if (escaping)
-					sb.append("\\?");
-				else
-					sb.append('.');
-				escaping = false;
-				break;
-			case '.':
-			case '(':
-			case ')':
-			case '+':
-			case '|':
-			case '^':
-			case '$':
-			case '@':
-			case '%':
-				sb.append('\\');
-				sb.append(currentChar);
-				escaping = false;
-				break;
-			case '\\':
-				if (escaping) {
-					sb.append("\\\\");
-					escaping = false;
-				} else
-					escaping = true;
-				break;
-			case '{':
-				if (escaping) {
-					sb.append("\\{");
-				} else {
-					sb.append('(');
-					inCurlies++;
+					uncomprSize = comprSize;
+
+				if (comprSize != 0) {
+					DataTransfer transfer = new DataTransfer(mapAttempt,
+							redAttempts.get(i), comprSize, uncomprSize);
+
+					// Adjust the transfer's end time based on duration
+					long duration = (long) Math.ceil(comprSize
+							* redTimeRatio[i]);
+					transfer.setEndTime(new Date(transfer.getStartTime()
+							.getTime() + duration));
+
+					job.addDataTransfer(transfer);
 				}
-				escaping = false;
-				break;
-			case '}':
-				if (inCurlies > 0 && !escaping) {
-					sb.append(')');
-					inCurlies--;
-				} else if (escaping)
-					sb.append("\\}");
-				else
-					sb.append("}");
-				escaping = false;
-				break;
-			case ',':
-				if (inCurlies > 0 && !escaping) {
-					sb.append('|');
-				} else if (escaping)
-					sb.append("\\,");
-				else
-					sb.append(",");
-				break;
-			default:
-				escaping = false;
-				sb.append(currentChar);
 			}
 		}
 
-		if (!matchAll)
-			sb.append(".*");
-
-		return sb.toString();
+		return true;
 	}
 
 	/**
-	 * Formats the input duration in a human readable format. The output will be
-	 * on of: ms, sec, min & sec, hr & min & sec depending on the duration.
-	 * 
-	 * @param duration
-	 *            the duration in ms
-	 * @return a formatted string
-	 */
-	public static String getFormattedDuration(long duration) {
-
-		String result;
-		long sec = Math.round(duration / (float) MS_IN_SEC);
-		if (duration < MS_IN_SEC) {
-			result = String.format("%d ms", duration);
-		} else if (sec < SEC_IN_MIN) {
-			result = String.format("%d sec %d ms", sec, duration % MS_IN_SEC);
-		} else if (sec < SEC_IN_HR) {
-			result = String.format("%d min %d sec", sec / SEC_IN_MIN, sec
-					% SEC_IN_MIN);
-		} else {
-			result = String.format("%d hr %d min %d sec", sec / SEC_IN_HR,
-					(sec / MIN_IN_HR) % SEC_IN_MIN, sec % SEC_IN_MIN);
-		}
-
-		return result;
-	}
-
-	/**
-	 * Formats the input size in a human readable format. The output will be on
-	 * of: Bytes, KB, MB, GB depending on the size.
-	 * 
-	 * @param bytes
-	 *            the size in bytes
-	 * @return a formatted string
-	 */
-	public static String getFormattedSize(long bytes) {
-
-		String result;
-		if (bytes < 1024) {
-			result = String.format("%d Bytes", bytes);
-		} else if (bytes < 1024l * 1024) {
-			result = String.format("%.2f KB", bytes / 1024.0);
-		} else if (bytes < 1024l * 1024 * 1024) {
-			result = String.format("%.2f MB", bytes / (1024.0 * 1024));
-		} else {
-			result = String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
-		}
-
-		return result;
-	}
-
-	/**
-	 * Checks if the task memory has been set in the java opts setting
+	 * Get the list of input directories from the job configuration. An empty
+	 * array is returned if none are found.
 	 * 
 	 * @param conf
-	 *            the configuration
-	 * @return true if task memory is set
+	 *            the job configuration
+	 * @return the list of input directories
 	 */
-	public static boolean isTaskMemorySet(Configuration conf) {
+	public static String[] getInputDirs(Configuration conf) {
 
-		String javaOpts = conf.get(MR_JAVA_OPTS);
-		if (javaOpts == null)
-			return false;
+		String inputDirs = conf.get(MR_INPUT_DIR);
+		if (inputDirs == null)
+			inputDirs = conf.get(PIG_INPUT_DIRS);
 
-		Matcher m = jvmMem.matcher(javaOpts);
-		return m.find();
+		if (inputDirs == null)
+			return new String[0];
+		else
+			return StringUtils.split(inputDirs);
+	}
+
+	/**
+	 * Get the list of output directories from the job configuration. An empty
+	 * array is returned if none are found.
+	 * 
+	 * @param conf
+	 *            the job configuration
+	 * @return the list of output directories
+	 */
+	public static String[] getOutputDirs(Configuration conf) {
+
+		String outputDirs = conf.get(PIG_MAP_OUT_DIRS);
+		if (outputDirs == null)
+			outputDirs = conf.get(PIG_RED_OUT_DIRS);
+		if (outputDirs == null)
+			outputDirs = conf.get(PIG_MAPRED_OUT_DIRS);
+		if (outputDirs == null)
+			outputDirs = conf.get(MR_OUTPUT_DIR);
+
+		if (outputDirs == null)
+			return new String[0];
+		else
+			return StringUtils.split(outputDirs);
 	}
 
 	/**
@@ -346,6 +317,81 @@ public class ProfileUtils {
 	}
 
 	/**
+	 * Checks if the task memory has been set in the java opts setting
+	 * 
+	 * @param conf
+	 *            the configuration
+	 * @return true if task memory is set
+	 */
+	public static boolean isTaskMemorySet(Configuration conf) {
+
+		String javaOpts = conf.get(MR_JAVA_OPTS);
+		if (javaOpts == null)
+			return false;
+
+		Matcher m = jvmMem.matcher(javaOpts);
+		return m.find();
+	}
+
+	/**
+	 * Determine whether the MapReduce output compression is on or off based on
+	 * either the Hadoop parameters or the extension of the output paths.
+	 * 
+	 * Note: if no output paths are provided, this method will access the conf
+	 * to get the output paths
+	 * 
+	 * @param conf
+	 *            the configuration
+	 * @param outPaths
+	 *            the output paths
+	 * @return true if output compression is on
+	 */
+	public static boolean isMROutputCompressionOn(Configuration conf,
+			String... outPaths) {
+
+		// Check the official parameter first
+		if (conf.getBoolean(MR_COMPRESS_OUT, false) == true)
+			return true;
+
+		if (outPaths == null || outPaths.length == 0)
+			outPaths = ProfileUtils.getOutputDirs(conf);
+
+		// Look into the output paths
+		for (String outDir : outPaths) {
+			if (GeneralUtils.hasCompressionExtension(outDir))
+				return true;
+			if (ProfileUtils.isPigTempPath(conf, outDir))
+				return conf.getBoolean(Constants.PIG_TEMP_COMPRESSION, false);
+		}
+
+		return false;
+	}
+
+	/**
+	 * Checks if the provided path is a Pig temporary path
+	 * 
+	 * @param conf
+	 *            the configuration
+	 * @param path
+	 *            the path to check
+	 * @return true if the path is a Pig temporary path
+	 */
+	public static boolean isPigTempPath(Configuration conf, String path) {
+
+		// Remove any leading URL scheme and domain
+		int index = path.indexOf("://");
+		if (index > 0) {
+			index = path.indexOf('/', index + 3);
+			path = path.substring(index);
+		}
+
+		if (path.startsWith(conf.get(Constants.PIG_TEMP_DIR, "/tmp")))
+			return true;
+		else
+			return false;
+	}
+
+	/**
 	 * Sets the task memory in the java opts setting
 	 * 
 	 * @param conf
@@ -366,10 +412,10 @@ public class ProfileUtils {
 			javaOpts = m.replaceAll(taskMem);
 		} else {
 			javaOpts = javaOpts + " " + taskMem;
-			javaOpts.trim();
 		}
 
 		// Set the new java opts
+		javaOpts = javaOpts.trim();
 		conf.set(MR_JAVA_OPTS, javaOpts);
 	}
 
@@ -397,7 +443,7 @@ public class ProfileUtils {
 		out.println("\tStart Time:\t" + mrJob.getStartTime());
 		out.println("\tEnd Time:\t" + mrJob.getEndTime());
 		out.println("\tDuration:\t"
-				+ ProfileUtils.getFormattedDuration(mrJob.getDuration()));
+				+ GeneralUtils.getFormattedDuration(mrJob.getDuration()));
 		out.println("\tStatus: \t" + mrJob.getStatus());
 		out.println();
 
@@ -536,87 +582,11 @@ public class ProfileUtils {
 	 */
 	public static void printMRJobTimeline(PrintStream out, MRJobInfo mrJob) {
 
-		// Initializations
-		long jobStart = mrJob.getStartTime().getTime() / 1000;
-		int jobDuration = (int) Math.ceil(mrJob.getDuration() / 1000d);
-		boolean success = true;
-		int start = 0;
-		int shuffle = 0;
-		int sort = 0;
-		int end = 0;
-		int time = 0;
-
-		// Create and initialize the counter arrays
-		int[] mappers = new int[jobDuration];
-		int[] shuffling = new int[jobDuration];
-		int[] sorting = new int[jobDuration];
-		int[] reducing = new int[jobDuration];
-		int[] waste = new int[jobDuration];
-
-		for (int i = 0; i < jobDuration; ++i) {
-			mappers[i] = shuffling[i] = sorting[i] = reducing[i] = waste[i] = 0;
-		}
-
-		// Count the map tasks
-		for (MRMapInfo mrMap : mrJob.getMapTasks()) {
-			for (MRMapAttemptInfo mrMapAttempt : mrMap.getAttempts()) {
-				success = mrMapAttempt.getStatus() == MRExecutionStatus.SUCCESS;
-				start = (int) (mrMapAttempt.getStartTime().getTime() / 1000 - jobStart);
-				end = (int) (mrMapAttempt.getEndTime().getTime() / 1000 - jobStart);
-				if (success) {
-					for (time = start; time < end; ++time)
-						++mappers[time];
-				} else {
-					for (time = start; time < end; ++time)
-						++waste[time];
-				}
-			}
-		}
-
-		// Count the reduce tasks
-		for (MRReduceInfo mrRed : mrJob.getReduceTasks()) {
-			for (MRReduceAttemptInfo mrRedAttempt : mrRed.getAttempts()) {
-				success = mrRedAttempt.getStatus() == MRExecutionStatus.SUCCESS;
-				start = (int) (mrRedAttempt.getStartTime().getTime() / 1000 - jobStart);
-				end = (int) (mrRedAttempt.getEndTime().getTime() / 1000 - jobStart);
-
-				if (success) {
-					shuffle = (int) (mrRedAttempt.getShuffleEndTime().getTime() / 1000 - jobStart);
-					sort = (int) (mrRedAttempt.getSortEndTime().getTime() / 1000 - jobStart);
-
-					for (time = start; time < shuffle; ++time)
-						++shuffling[time];
-					for (time = shuffle; time < sort; ++time)
-						++sorting[time];
-					for (time = sort; time < end; ++time)
-						++reducing[time];
-				} else {
-					for (time = start; time < end; ++time)
-						++waste[time];
-				}
-			}
-		}
-
-		// Print out the timeline
-		StringBuffer sb = new StringBuffer();
-		out.println("Time\tMaps\tShuffle\tMerge\tReduce\tWaste");
-		for (int t = 0; t < jobDuration; ++t) {
-			sb.append(t);
-			sb.append(TAB);
-			sb.append(mappers[t]);
-			sb.append(TAB);
-			sb.append(shuffling[t]);
-			sb.append(TAB);
-			sb.append(sorting[t]);
-			sb.append(TAB);
-			sb.append(reducing[t]);
-			sb.append(TAB);
-			sb.append(waste[t]);
-
-			out.println(sb.toString());
-			sb.delete(0, sb.length());
-		}
-
+		// Calculate and print out the timeline
+		TimelineCalc timeline = new TimelineCalc(mrJob.getStartTime(),
+				mrJob.getEndTime());
+		timeline.addJob(mrJob);
+		timeline.printTimeline(out);
 	}
 
 	/**
@@ -742,8 +712,8 @@ public class ProfileUtils {
 							.getCounter(MRCounter.MAP_OUTPUT_RECORDS);
 
 			adjustTaskIntermCompression(profNoCompr, profWithCompr, profResult,
-					avgRecSize, profWithCompr
-							.getCounter(MRCounter.SPILLED_RECORDS));
+					avgRecSize,
+					profWithCompr.getCounter(MRCounter.SPILLED_RECORDS));
 		}
 
 		// Adjust for output compression statistics (map-only job)
@@ -790,8 +760,8 @@ public class ProfileUtils {
 							.getCounter(MRCounter.REDUCE_INPUT_RECORDS);
 
 			adjustTaskIntermCompression(profNoCompr, profWithCompr, profResult,
-					avgRecSize, profWithCompr
-							.getCounter(MRCounter.SPILLED_RECORDS));
+					avgRecSize,
+					profWithCompr.getCounter(MRCounter.SPILLED_RECORDS));
 
 			// Calculate intermediate uncompression cost during shuffle
 			double uncomprCost = profWithCompr
@@ -807,8 +777,8 @@ public class ProfileUtils {
 					uncomprCost);
 
 			// Reset the network cost
-			profResult.addCostFactor(MRCostFactors.NETWORK_COST, profNoCompr
-					.getCostFactor(MRCostFactors.NETWORK_COST));
+			profResult.addCostFactor(MRCostFactors.NETWORK_COST,
+					profNoCompr.getCostFactor(MRCostFactors.NETWORK_COST));
 		}
 
 		// Adjust for output compression statistics
@@ -895,8 +865,7 @@ public class ProfileUtils {
 			double readCost = profNoCompr
 					.getCostFactor(MRCostFactors.READ_LOCAL_IO_COST);
 			double uncomprCost = profWithCompr
-					.getCostFactor(MRCostFactors.READ_LOCAL_IO_COST)
-					- readCost;
+					.getCostFactor(MRCostFactors.READ_LOCAL_IO_COST) - readCost;
 
 			profResult
 					.addCostFactor(MRCostFactors.READ_LOCAL_IO_COST, readCost);
@@ -942,8 +911,8 @@ public class ProfileUtils {
 			MRTaskProfile profWithCompr, MRTaskProfile profResult,
 			long numRecs, long numBytes) {
 
-		profResult.addStatistic(MRStatistics.OUT_COMPRESS_RATIO, profWithCompr
-				.getStatistic(MRStatistics.OUT_COMPRESS_RATIO));
+		profResult.addStatistic(MRStatistics.OUT_COMPRESS_RATIO,
+				profWithCompr.getStatistic(MRStatistics.OUT_COMPRESS_RATIO));
 
 		if (numRecs == 0l || numBytes == 0l)
 			return;
@@ -961,8 +930,8 @@ public class ProfileUtils {
 				comprCost);
 
 		// Reset the HDFS write cost
-		profResult.addCostFactor(MRCostFactors.WRITE_HDFS_IO_COST, profNoCompr
-				.getCostFactor(MRCostFactors.WRITE_HDFS_IO_COST));
+		profResult.addCostFactor(MRCostFactors.WRITE_HDFS_IO_COST,
+				profNoCompr.getCostFactor(MRCostFactors.WRITE_HDFS_IO_COST));
 
 	}
 

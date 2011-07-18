@@ -8,7 +8,7 @@
 
 	<property name="Name" value="Starfish" />
 	<property name="name" value="starfish" />
-	<property name="starfish.version" value="0.1.0" />
+	<property name="starfish.version" value="0.2.0" />
 	<property name="final.name" value="${name}-${starfish.version}" />
 	<property name="year" value="2011" />
 
@@ -49,14 +49,14 @@
 
 	<!-- BTrace specific properties -->
 	<property name="btrace.src.dir" value="${src.dir}/btrace" />
-	<property name="btrace.build.dir" value="${basedir}/hadoop-btrace" />
+	<property name="btrace.build.dir" value="${basedir}/btrace" />
 	<property name="btrace.home.dir" value="${basedir}/tools/btrace" />
-	<property name="hadoop.jar" value="${lib.dir}/hadoop-0.20.2-core.jar" />
+	<property name="btrace.classpath" value="${build.dir}:${lib.dir}/hadoop-core-0.20.203.0.jar:${lib.dir}/log4j-1.2.15.jar" />
 
 	<!-- Contrib and Visualizer projects -->
 	<property name="contrib.dir" value="${basedir}/contrib" />
 	<property name="contrib.examples.dir" value="${contrib.dir}/examples" />
-	<property name="contrib.tfidf.dir" value="${contrib.dir}/TF-IDF" />
+	<property name="contrib.tfidf.dir" value="${contrib.dir}/tfidf" />
 	<property name="visualizer.dir" value="${basedir}/visualizer" />
 	
 	
@@ -91,8 +91,10 @@
 		description="Compile the entire project">
 	</target>
 
-	<target name="compile-profile-classes">
-		<javac encoding="${build.encoding}" 
+	<target name="compile-profile-classes" 
+			depends="init">
+		<javac includeantruntime="false" 
+			encoding="${build.encoding}" 
 			srcdir="${profile.src.dir}"
 			includes="edu/duke/starfish/**/*.java" 
 			destdir="${build.dir}" 
@@ -108,8 +110,9 @@
 	</target>
 
 	<target name="compile-whatif-classes" 
-			depends="compile-profile-classes">
-		<javac encoding="${build.encoding}" 
+			depends="init,compile-profile-classes">
+		<javac includeantruntime="false" 
+			encoding="${build.encoding}" 
 			srcdir="${whatif.src.dir}"
 			includes="edu/duke/starfish/**/*.java" 
 			destdir="${build.dir}" 
@@ -125,8 +128,9 @@
 	</target>
 
 	<target name="compile-jobopt-classes" 
-			depends="compile-profile-classes,compile-whatif-classes">
-		<javac encoding="${build.encoding}" 
+			depends="init,compile-profile-classes,compile-whatif-classes">
+		<javac includeantruntime="false" 
+			encoding="${build.encoding}" 
 			srcdir="${jobopt.src.dir}"
 			includes="edu/duke/starfish/**/*.java" 
 			destdir="${build.dir}" 
@@ -141,12 +145,13 @@
 		</javac>
 	</target>
 
-	<target name="compile-btrace-classes" depends="">
+	<target name="compile-btrace-classes" 
+			depends="init">
 		<exec executable="/bin/sh">
 			<arg value="${btrace.home.dir}/bin/btracec" />
 			<arg value="-unsafe" />
 			<arg value="-cp" />
-			<arg value="${build.dir}:${hadoop.jar}" />
+			<arg value="${btrace.classpath}" />
 			<arg value="-d" />
 			<arg value="${btrace.build.dir}" />
 			<arg value="${btrace.src.dir}/*.java" />
@@ -224,6 +229,12 @@
 	<!-- Build contrib and visualizer projects                              -->
 	<!-- ================================================================== -->
 
+	<!-- build_all: Builds Starfish, contrib projects, and visualizer -->
+	<target name="build_all" 
+			depends="compile, jar, build_contrib_projects, build_visualizer"
+			description="Builds Starfish, contrib projects, and visualizer">
+	</target>
+
 	<!-- build_contrib_projects: Builds the projects in the contrib folder -->
 	<target name="build_contrib_projects" depends="">
 		<ant dir="${contrib.examples.dir}" inheritAll="false" />
@@ -261,15 +272,15 @@
 		<copy todir="${final.name}/contrib/examples" verbose="false">
 			<fileset dir="contrib/examples" includes="*.jar,README" />
 		</copy>
-		<copy todir="${final.name}/contrib/TF-IDF" verbose="false">
-			<fileset dir="contrib/TF-IDF" includes="*.jar,README,run_tfidf.sh" />
+		<copy todir="${final.name}/contrib/tfidf" verbose="false">
+			<fileset dir="contrib/tfidf" includes="*.jar,README,run_tfidf.sh" />
 		</copy>
-		<chmod file="${final.name}/contrib/TF-IDF/run_tfidf.sh" perm="a+x"/>
+		<chmod file="${final.name}/contrib/tfidf/run_tfidf.sh" perm="a+x"/>
 		<copy todir="${final.name}/docs" verbose="false">
 			<fileset dir="docs" includes="**/*" />
 		</copy>
-		<copy todir="${final.name}/hadoop-btrace" verbose="false">
-			<fileset dir="hadoop-btrace" includes="**/*" />
+		<copy todir="${final.name}/btrace" verbose="false">
+			<fileset dir="btrace" includes="**/*" />
 		</copy>
 		<copy todir="${final.name}/samples" verbose="false">
 			<fileset dir="samples" includes="**/*" />
@@ -278,8 +289,9 @@
 			<fileset dir="tools" includes="btrace/**,monitor/**" />
 		</copy>
 		<copy todir="${final.name}/visualizer" verbose="false">
-			<fileset dir="visualizer" includes="README,samples.tar.gz,*.jar" />
+			<fileset dir="visualizer" includes="README,*.jar,visualize.sh" />
 		</copy>
+		<chmod file="${final.name}/visualizer/visualize.sh" perm="a+x"/>
 
 	</target>
 
@@ -362,6 +374,9 @@
 	<target name="clean" description="Delete the build directory">
 		<delete dir="${build.dir}" />
 		<delete dir="${btrace.build.dir}" />
+		<delete file="${starfish.profiler.jar}" />
+		<delete file="${starfish.whatif.jar}" />
+		<delete file="${starfish.jobopt.jar}" />
 	</target>
 
 	<!-- help command: Prints help information-->

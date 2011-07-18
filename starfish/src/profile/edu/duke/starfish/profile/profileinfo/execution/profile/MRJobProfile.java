@@ -36,6 +36,7 @@ public class MRJobProfile extends MRExecProfile {
 
 	private List<MRMapProfile> avgMapProfiles; // Average map profiles
 	private MRReduceProfile avgReduceProfile; // Average reduce profile
+	private int maxInputIndex; // The max input index
 
 	// CONSTANTS
 	private static final String AVG_MAP = "average_map_";
@@ -72,6 +73,7 @@ public class MRJobProfile extends MRExecProfile {
 		this.reduceProfiles = null;
 		this.avgMapProfiles = null;
 		this.avgReduceProfile = null;
+		this.maxInputIndex = 0;
 	}
 
 	/**
@@ -109,8 +111,8 @@ public class MRJobProfile extends MRExecProfile {
 		}
 
 		if (other.avgMapProfiles != null) {
-			avgMapProfiles = new ArrayList<MRMapProfile>(other.avgMapProfiles
-					.size());
+			avgMapProfiles = new ArrayList<MRMapProfile>(
+					other.avgMapProfiles.size());
 			for (MRMapProfile prof : other.avgMapProfiles)
 				avgMapProfiles.add(new MRMapProfile(prof));
 		} else {
@@ -122,6 +124,8 @@ public class MRJobProfile extends MRExecProfile {
 		} else {
 			avgReduceProfile = null;
 		}
+
+		maxInputIndex = other.maxInputIndex;
 	}
 
 	/* ***************************************************************
@@ -216,6 +220,9 @@ public class MRJobProfile extends MRExecProfile {
 		if (mapProfiles == null)
 			mapProfiles = new ArrayList<MRMapProfile>();
 		mapProfiles.add(mapProfile);
+
+		if (mapProfile.getInputIndex() > maxInputIndex)
+			maxInputIndex = mapProfile.getInputIndex();
 	}
 
 	/**
@@ -582,8 +589,7 @@ public class MRJobProfile extends MRExecProfile {
 	 */
 	private void initializeAvgMapProfiles() {
 
-		int numProfiles = (jobInputs == null || jobInputs.length == 0) ? 1
-				: jobInputs.length;
+		int numProfiles = maxInputIndex + 1;
 		if (avgMapProfiles == null || avgMapProfiles.size() != numProfiles) {
 			// Create the empty profiles
 			avgMapProfiles = new ArrayList<MRMapProfile>(numProfiles);
@@ -605,8 +611,7 @@ public class MRJobProfile extends MRExecProfile {
 	private List<List<MRMapProfile>> separateMapProfilesBasedOnInput() {
 
 		// Create the list of lists of map profiles
-		int numProfiles = (jobInputs == null || jobInputs.length == 0) ? 1
-				: jobInputs.length;
+		int numProfiles = maxInputIndex + 1;
 		List<List<MRMapProfile>> sepProfiles = new ArrayList<List<MRMapProfile>>(
 				numProfiles);
 

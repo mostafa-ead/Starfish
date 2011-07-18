@@ -1,122 +1,95 @@
 #!/usr/bin/env bash
 
-###############################################################################
-# This script is used to gather the history, profile, and transfer files 
-# after a job is profiled.
+###################################################################
+# The gather_results command script
 #
-# Usage:
-#  ./gather_results.sh <job_id> <results_dir> [<slaves_file>]
-#  
-#  where:
-#    job_id      = The job id of interest
-#    results_dir = Directory to place the result files
-#    slaves_file = File with slave names (to gather data transfers) - optional
+# This script is used to gather the history, profile, and transfer 
+# files after a job completes execution. This script is useful
+# when a job is not profiled, or when the job is profiled
+# without the bin/profile script.
 #
-# This script will create three directories under <results_dir>, namely,
-# history, profiles, and transfers, to place in the corresponding files.
-#
-# Warning: You must run this script from the same directory you run the
-#          hadoop jar command.
-#
-# Examples:
-#  ./gather_results.sh job_201001052153_0021 ./results
-#  ./gather_results.sh job_201001052153_0021 ./results ~/slaves.txt
+# The user should not need to modify this script. All user-defined
+# parameters can be set in 'config.sh'.
 #
 # Author: Herodotos Herodotou
-# Date: November 5, 2010
-##############################################################################
+# Date:   July 11, 2011
+###################################################################
 
 
-# Make sure we have all the arguments
-if [ $# -ne 2 ] && [ $# -ne 3 ]; then
-   printf "Usage: $0 <job_id> <results_dir> [<slaves_file>]\n"
-   printf "  job_id      = The job id of interest\n"
-   printf "  results_dir = Directory to place the result files\n"
-   printf "  slaves_file = File with slave names (to gather data transfers) - optional\n"
-   exit -1
+# if no args specified, show usage
+if [ $# = 0 ]; then
+  echo "Usage:"
+  echo "    $0 job_id"
+  echo ""
+  echo "General parameters are set in bin/config.sh"
+  echo ""
+  exit 1
 fi
 
-# Get the input data
-declare JOB_ID=$1;
-declare RESULTS_DIR=$2;
-declare SLAVES_FILE=$3
+# Perform common tasks like Load configurations and initializations
+bin=`dirname "$0"`
+. "$bin"/common.sh
 
-# Error checking
-if test ! -d $RESULTS_DIR; then
-   printf "ERROR: The directory '$RESULTS_DIR' does not exist. Exiting\n"
-   exit -1
+
+# Default output directory is the working directory
+if [ "$PROFILER_OUTPUT_DIR" = "" ]; then
+  PROFILER_OUTPUT_DIR=$CURRENT_DIR
+fi
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.profiler.output.dir=${PROFILER_OUTPUT_DIR}"
+
+# Flag for retaining the task profiles
+if [ "$RETAIN_TASK_PROFILES" = "" ]; then
+  RETAIN_TASK_PROFILES=true
+fi
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.profiler.retain.task.profiles=${RETAIN_TASK_PROFILES}"
+
+# Flag for collecting the data transfers
+if [ "$COLLECT_DATA_TRANSFERS" = "" ]; then
+  COLLECT_DATA_TRANSFERS=false
+fi
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.profiler.collect.data.transfers=${COLLECT_DATA_TRANSFERS}"
+
+# Flag to enable profiling sampling
+if [ "$SAMPLING_MODE" = "" ]; then
+  SAMPLING_MODE="off"
+fi
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.profiler.sampling.mode=${SAMPLING_MODE}"
+
+# The sampling fraction
+if [ "$SAMPLING_FRACTION" = "" ]; then
+  SAMPLING_FRACTION="0.1"
+fi
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.profiler.sampling.fraction=${SAMPLING_FRACTION}"
+
+
+# Add the profiler jar to the classpath
+HADOOP_CLASSPATH_OLD=$HADOOP_CLASSPATH
+HADOOP_CLASSPATH=`ls $BASE_DIR/starfish-*-profiler.jar`
+if [ "$HADOOP_CLASSPATH_OLD" != "" ]; then
+  HADOOP_CLASSPATH=${HADOOP_CLASSPATH}:${HADOOP_CLASSPATH_OLD}
 fi
 
-if [ $# -eq 3 ] && [ ! -e $SLAVES_FILE ]; then
-   printf "ERROR: The file '$SLAVES_FILE' does not exist. Exiting\n"
-   exit -1
-fi
+# Add any user-defined jars to the classpath
+OLD_IFS="$IFS"
+IFS=" "
+args=( $@ )
 
-# Execute the hadoop-env.sh script for environmental variable definitions
-declare HADOOP_CONF_DIR="${HADOOP_CONF_DIR:-$HADOOP_HOME/conf}"
-if [ -f "${HADOOP_CONF_DIR}/hadoop-env.sh" ]; then
-   . "${HADOOP_CONF_DIR}/hadoop-env.sh"
-fi
-
-# Find the hadoop log directories
-declare HADOOP_LOG_DIR="${HADOOP_LOG_DIR:-$HADOOP_HOME/logs}"
-declare MR_USERLOG_DIR="${HADOOP_LOG_DIR}/userlogs"
-
-
-# Echo the input
-printf "Input Parameters:\n"
-printf "  Job id: $JOB_ID\n"
-printf "  Results directory: $RESULTS_DIR\n\n"
-
-# Get the history files
-mkdir -p $RESULTS_DIR/history
-cp $HADOOP_LOG_DIR/history/*$JOB_ID* $RESULTS_DIR/history/.
-
-# Get the profiles
-mkdir -p $RESULTS_DIR/task_profiles;
-declare profile_name="attempt_${JOB_ID/job_/}"
-mv $profile_name*.profile $RESULTS_DIR/task_profiles/. &> /dev/null
-[ "$(ls -A $RESULTS_DIR/task_profiles)" ] || rmdir $RESULTS_DIR/task_profiles
-
-if [ "$SLAVES_FILE" == "" ]; then
-   printf "Done!\n"
-   exit 0
-fi
-
-
-# Get the data transfers
-mkdir -p $RESULTS_DIR/transfers;
-declare attempt_dirname_pattern="attempt_${JOB_ID/job_/}_r_"
-declare -a reduce_attempt_array
-declare reduce_attempt_str
-declare reduce_attempt
-
-#  For each slave host
-for slave in `cat "$SLAVES_FILE"`; do
-{
-#echo "$slave ls -1t ${MR_USERLOG_DIR} | grep '${attempt_dirname_pattern}'\n"
-    reduce_attempt_str=`ssh $HADOOP_SSH_OPTS $slave "ls -1t ${MR_USERLOG_DIR} | grep '${attempt_dirname_pattern}'"`
-    reduce_attempt_array=(`echo $reduce_attempt_str | tr '\n' ' '`)
-    
-    for reduce_attempt in ${reduce_attempt_array[@]}; do
-    {
-#echo "$reduce_attempt\n"
-        if [ "$reduce_attempt" != "" ]; then
-            # Grep the data transfers from the syslog into a file and move it locally
-            ssh $HADOOP_SSH_OPTS $slave "egrep 'Shuffling|Read|Failed' ${MR_USERLOG_DIR}/${reduce_attempt}/syslog > /tmp/transfers_${reduce_attempt}"
-            scp $HADOOP_SSH_OPTS $slave:/tmp/transfers_${reduce_attempt} "$RESULTS_DIR/transfers/."
-            ssh $HADOOP_SSH_OPTS $slave "rm -f /tmp/transfers_${reduce_attempt}"
-        fi
-    }
-    done
-
-    if [ "$HADOOP_SLAVE_SLEEP" != "" ]; then
-        sleep $HADOOP_SLAVE_SLEEP
-    fi
-} &
+size=${#@};
+for (( i = 0 ; i < size ; i++ ));
+do
+  if [ "${args[${i}]}" = "-libjars" ]; then
+     IFS=","
+     for userjar in ${args[${i}+1]}
+     do
+        HADOOP_CLASSPATH="${HADOOP_CLASSPATH}:$userjar"
+     done
+  fi
 done
-wait
+IFS="$OLD_IFS"
 
-# Done
-printf "Done!\n"
+# Export the required hadoop parameters
+export HADOOP_OPTS
+export HADOOP_CLASSPATH
 
+# Execute the hadoop command
+${HADOOP_HOME}/bin/hadoop edu.duke.starfish.profile.utils.GatherResults "$1"

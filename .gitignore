@@ -1,0 +1,31 @@
+# For the (starfish) root directory
+/.project
+/.classpath
+/.metadata
+
+# starfish related
+starfish/.classpath
+starfish/.project
+starfish/build
+starfish/docs/api
+starfish/eclipse-bin/
+starfish/btrace/
+starfish/*.jar
+
+# starfish contrib related
+starfish/contrib/*/.project
+starfish/contrib/*/.classpath
+starfish/contrib/*/bin
+starfish/contrib/*/doc
+starfish/contrib/*/*.jar
+
+# starfish visualizer related
+starfish/visualizer/.project
+starfish/visualizer/.classpath
+starfish/visualizer/.settings
+starfish/visualizer/build
+starfish/visualizer/dist
+starfish/visualizer/temp
+starfish/visualizer/*.jar
+
+

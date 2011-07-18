@@ -1,4 +1,4 @@
-package edu.duke.starfish.profile.profileinfo.utils;
+package edu.duke.starfish.profile.utils;
 
 import java.io.File;
 import java.io.FileInputStream;

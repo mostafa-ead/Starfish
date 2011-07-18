@@ -88,6 +88,24 @@ public class IntegerParamDescriptor extends ParameterDescriptor {
 					+ getParameter().toString());
 	}
 
+	/**
+	 * Set both the min and max value for the parameter
+	 * 
+	 * @param minValue
+	 *            the min value to set
+	 * @param maxValue
+	 *            the max value to set
+	 */
+	public void setMinMaxValue(int minValue, int maxValue) {
+		this.minValue = minValue;
+		this.maxValue = maxValue;
+
+		if (maxValue < minValue)
+			throw new RuntimeException("ERROR: The max " + maxValue
+					+ " is less than min " + minValue + " for param "
+					+ getParameter().toString());
+	}
+
 	/* ***************************************************************
 	 * OVERRIDEN METHODS
 	 * ***************************************************************
@@ -177,4 +195,5 @@ public class IntegerParamDescriptor extends ParameterDescriptor {
 				+ " Effect=" + getEffect() + " Min=" + minValue + " Max="
 				+ maxValue + "]";
 	}
+
 }

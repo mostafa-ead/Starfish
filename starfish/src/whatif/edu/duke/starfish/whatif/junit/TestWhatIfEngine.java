@@ -16,7 +16,6 @@ import edu.duke.starfish.whatif.WhatIfUtils;
 import edu.duke.starfish.whatif.data.MapInputSpecs;
 import edu.duke.starfish.whatif.oracle.JobProfileOracle;
 import edu.duke.starfish.whatif.scheduler.BasicFIFOScheduler;
-import edu.duke.starfish.whatif.scheduler.BasicFIFOSchedulerForOptimizer;
 
 public class TestWhatIfEngine extends TestCase {
 
@@ -29,7 +28,7 @@ public class TestWhatIfEngine extends TestCase {
 		// Common elements
 		ClusterConfiguration cluster = SampleProfiles.getClusterConfiguration();
 		SampleDataSetModel model = new SampleDataSetModel();
-		BasicFIFOSchedulerForOptimizer scheduler = new BasicFIFOSchedulerForOptimizer();
+		BasicFIFOScheduler scheduler = new BasicFIFOScheduler(cluster);
 
 		// TeraSort ---------------------------------------------------
 		MRJobProfile tsJobProf = SampleProfiles.getTeraSortJobProfile();
@@ -43,10 +42,9 @@ public class TestWhatIfEngine extends TestCase {
 		tsConf.getBoolean(SampleDataSetModel.USE_AVG_PROFILE, true);
 
 		// Ask the what-if question
-		WhatIfEngine tsWhatif = new WhatIfEngine(tsOracle, model, scheduler,
-				cluster, tsConf);
+		WhatIfEngine tsWhatif = new WhatIfEngine(tsOracle, model, scheduler);
 		double tsExecTime = tsWhatif.whatIfJobConfGetTime(tsConf);
-		assertEquals(141235.7295, tsExecTime, 0.001);
+		assertEquals(144234.000, tsExecTime, 0.001);
 
 		// WordCount ---------------------------------------------------
 		MRJobProfile wcJobProf = SampleProfiles.getWordCountJobProfile();
@@ -60,11 +58,9 @@ public class TestWhatIfEngine extends TestCase {
 		wcConf.getBoolean(SampleDataSetModel.USE_AVG_PROFILE, true);
 
 		// Ask the what-if question
-		WhatIfEngine wcWhatif = new WhatIfEngine(wcOracle, model, scheduler,
-				cluster, wcConf);
+		WhatIfEngine wcWhatif = new WhatIfEngine(wcOracle, model, scheduler);
 		double wcExecTime = wcWhatif.whatIfJobConfGetTime(wcConf);
-		assertEquals(62274.1117, wcExecTime, 0.0001);
-
+		assertEquals(65271.000, wcExecTime, 0.0001);
 	}
 
 	/**
@@ -76,7 +72,7 @@ public class TestWhatIfEngine extends TestCase {
 		// Common elements
 		ClusterConfiguration cluster = SampleProfiles.getClusterConfiguration();
 		SampleDataSetModel model = new SampleDataSetModel();
-		BasicFIFOScheduler scheduler = new BasicFIFOScheduler();
+		BasicFIFOScheduler scheduler = new BasicFIFOScheduler(cluster);
 
 		// TeraSort ---------------------------------------------------
 		MRJobProfile tsJobProf = SampleProfiles.getTeraSortJobProfile();
@@ -90,10 +86,9 @@ public class TestWhatIfEngine extends TestCase {
 		tsConf.getBoolean(SampleDataSetModel.USE_AVG_PROFILE, true);
 
 		// Ask the what-if question
-		WhatIfEngine tsWhatif = new WhatIfEngine(tsOracle, model, scheduler,
-				cluster, tsConf);
+		WhatIfEngine tsWhatif = new WhatIfEngine(tsOracle, model, scheduler);
 		MRJobInfo tsJobInfo = tsWhatif.whatIfJobConfGetJobInfo(tsConf);
-		assertEquals(142734.0, tsJobInfo.getDuration(), 0.000001);
+		assertEquals(144234.0, tsJobInfo.getDuration(), 0.000001);
 
 		// Test generateMapInputSpecs()
 		List<MapInputSpecs> tsSpecs = WhatIfUtils
@@ -115,10 +110,9 @@ public class TestWhatIfEngine extends TestCase {
 		wcConf.getBoolean(SampleDataSetModel.USE_AVG_PROFILE, true);
 
 		// Ask the what-if question
-		WhatIfEngine wcWhatif = new WhatIfEngine(wcOracle, model, scheduler,
-				cluster, wcConf);
+		WhatIfEngine wcWhatif = new WhatIfEngine(wcOracle, model, scheduler);
 		MRJobInfo wcJobInfo = wcWhatif.whatIfJobConfGetJobInfo(wcConf);
-		assertEquals(63771.0, wcJobInfo.getDuration(), 0.000001);
+		assertEquals(65271.0, wcJobInfo.getDuration(), 0.000001);
 
 		// Test generateMapInputSpecs()
 		List<MapInputSpecs> wcSpecs = WhatIfUtils

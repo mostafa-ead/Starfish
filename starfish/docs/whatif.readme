@@ -4,7 +4,7 @@ Date: Mar 03, 2011
 
 Requirements
 ------------
-The Profiler has been used (see profile.readme) to generate the job profile
+The Profiler has been used (see profile.readme) to generate the job profiles
 
 
 What-if questions on a live cluster (with actual input data)
@@ -12,13 +12,13 @@ What-if questions on a live cluster (with actual input data)
 Use the bin/whatif script to ask a what-if question:
 
 Usage:
-  ./bin/whatif question profileFile jar jarFile [mainClass] [genericOptions] args...
+  ./bin/whatif question job_id hadoop jar jarFile [mainClass] [genericOptions] args...
 
-    mode        = job_time|details|profile|timeline|mappers|reducers
-    profileFile = the job profile XML file
+  question     = time|details|timeline|mappers|reducers|profile
+  job_id       = the job id of the profiled job
 
   Descriptions of 'question':
-    job_time     Display the execution time of the predicted job
+    time         Display the execution time of the predicted job
     details      Display the statistics of the predicted job
     profile      Display the predicted profile of the job
     timeline     Display the timeline of the predicted job
@@ -26,53 +26,33 @@ Usage:
     reducers     Display the reducers of the predicted job
 
 Example:
-  ./bin/whatif details profile-wordcount.xml jar hadoop-starfish-examples.jar wordcount -conf=myconf.xml input output
+  ./bin/whatif details job_201008240839_0000 hadoop jar hadoop-starfish-examples.jar wordcount -conf=myconf.xml input output
 
 
 What-if questions on a hypothetical cluster (with hypothetical input data)
 --------------------------------------------------------------------------
-Use the starfish-whatif.jar to ask the what-if question:
+Use the bin/whatif script to ask a what-if question:
 
 Usage:
- hadoop jar starfish-whatif.jar <parameters>
+  ./bin/whatif question profile_file input_file cluster_file [-c conf_file] [-o output_file]
+  
+  question     = time|details|timeline|mappers|reducers|profile
+  profile_file = the job profile file (XML file)
+  input_file   = the input specifications file (XML file)
+  cluster_file = the cluster specifications file (XML file)
+  conf_file    = optional job configuration file (XML file)
+  output_file  = optional file to write the output to
 
-The profiler parameters must be one of:
-  -mode {job_time|details|profile|timeline|mappers|reducers}
-       -profile <file> -conf <file> [-output <file>]
-
-  -mode {job_time|details|profile|timeline|mappers|reducers}
-       -profile <file> -input <file> -cluster <file>
-       [-conf <file> -output <file>]
-
-  -mode {cluster_info|cluster_xml} [-ouput <file>]
-
-  -mode input_specs -conf <file> [-ouput <file>]
-
-  -help
-
-Description of execution modes:
-  job_time     Display the execution time of the predicted job
-  details      Display the statistics of the predicted job
-  profile      Display the predicted profile of the job
-  timeline     Display the timeline of the predicted job
-  mappers      Display the mappers of the predicted job
-  reducers     Display the reducers of the predicted job
-  cluster_info Display the cluster information
-  cluster_xml  Display the cluster information as XML
-  input_specs  Display the input specifications as XML
-
-Description of parameter flags:
-  -mode <option>   The execution mode
-  -profile <file>  The job profile (XML file)
-  -conf <file>     The job configuration file (XML file)
-  -input <file>    The input specifications file (XML file)
-  -cluster <file>  The cluster specifications file (XML file)
-  -output <file>   An optional file to write the output to
-  -help            Display detailed instructions
-
+Descriptions of 'question':
+  time      Display the execution time of the predicted job
+  details   Display the statistics of the predicted job
+  profile   Display the predicted profile of the job
+  timeline  Display the timeline of the predicted job
+  mappers   Display the mappers of the predicted job
+  reducers  Display the reducers of the predicted job
 
 Example:
-  hadoop jar starfish-whatif.jar -mode details -profile profile-wordcount.xml -conf myconf.xml -input virtual-input.xml -cluster virtual-cluster.xml
+  ./bin/whatif details profile-wordcount.xml virtual-input.xml virtual-cluster.xml -c myconf.xml
 
 
 Notes
@@ -96,6 +76,7 @@ LIMITATIONS
 Currently, we do not profile compression! If you plan to use the job profile
 to ask what-if questions regarding compression or to use the Job Optimizer,
 then you must profile the same job twice: once with no compression and once
-with compression. Then use the 'adjust' mode (see below) to create the
-job profile.
+with compression. Then use the 'adjust' mode in the starfish-*-profiler.jar
+to create the job profile.
+
 

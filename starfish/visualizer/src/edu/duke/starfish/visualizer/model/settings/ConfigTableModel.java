@@ -2,6 +2,8 @@ package edu.duke.starfish.visualizer.model.settings;
 
 import javax.swing.table.AbstractTableModel;
 
+import edu.duke.starfish.profile.utils.Constants;
+
 /**
  * @author Fei Dong (dongfei@cs.duke.edu)
  * 
@@ -14,21 +16,24 @@ public class ConfigTableModel extends AbstractTableModel {
 
 	private static final long serialVersionUID = 4457677824945742061L;
 	private boolean readOnly;
+	private boolean mapOnly;
 	private String[] columnNames;
 	private Object[][] data;
 
 	/*
-	 * Construct, serve for the Config Table
+	 * Constructor, serve for the Config Table
 	 * 
 	 * @param col1 used for set the data[][]
 	 * 
 	 * @param col2 same as above
 	 * 
-	 * @param isWhatif specify the whatIf, it is useful when define which grid
-	 * is editable
+	 * @param readOnly whether the table is read only or not
 	 */
-	public ConfigTableModel(Object[] col1, Object[] col2, boolean readOnly) {
+	public ConfigTableModel(Object[] col1, Object[] col2, boolean readOnly,
+			boolean mapOnly) {
 		this.readOnly = readOnly;
+		this.mapOnly = mapOnly;
+
 		// init columnNames
 		columnNames = new String[2];
 		columnNames[0] = "Field";
@@ -66,6 +71,10 @@ public class ConfigTableModel extends AbstractTableModel {
 		// no matter where the cell appears onscreen.
 		if (readOnly)
 			return false;
+		
+		if (mapOnly && data[row][0].equals(Constants.MR_RED_TASKS))
+			return false;
+		
 		return (col != 0);
 	}
 

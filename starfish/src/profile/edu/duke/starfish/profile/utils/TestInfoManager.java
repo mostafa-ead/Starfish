@@ -1,4 +1,4 @@
-package edu.duke.starfish.profile.test;
+package edu.duke.starfish.profile.utils;
 
 import java.text.NumberFormat;
 import java.util.ArrayList;

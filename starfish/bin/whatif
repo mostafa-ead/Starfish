@@ -1,95 +1,202 @@
 #!/usr/bin/env bash
 
 ###################################################################
-# The WhatIf command script
+# The What-If command script
 #
-# Used to answer job what-if questions on a live Hadoop cluster
+# Used to answer job what-if questions on a live or a hypothetical
+# Hadoop cluster
 #
 # Author: Herodotos Herodotou
-# Date:   February 11, 2011
+# Date:   May 23, 2011
 ###################################################################
 
 
 # if no args specified, show usage
-if [ $# = 0 ]; then
-  echo "Usage: $0 question profileFile jar jarFile [mainClass] [genericOptions] args..."
+if [ $# = 0 ] || [ "$1" == "help" ]; then
+  echo "Hadoop usage with a LIVE cluster:"
+  echo "  $0 question job_id hadoop jar jarFile [mainClass] [genericOptions] args..."
   echo ""
-  echo "  mode        = job_time|details|profile|timeline|mappers|reducers"
-  echo "  profileFile = the job profile XML file"
+  if [ "$1" == "help" ]; then
+    echo "  question     = time|details|timeline|mappers|reducers|profile"
+    echo "  job_id       = the job id of the profiled job"
+    echo ""
+  else
+    echo "  question  = time|details|timeline|mappers|reducers|profile"
+    echo ""
+  fi
+  if [ "$1" == "help" ]; then
+    echo "Hadoop usage with a HYPOTHETICAL cluster:"
+    echo "  $0 question profile_file input_file cluster_file [-c conf_file] [-o output_file]"
+    echo ""
+    echo "  question     = time|details|timeline|mappers|reducers|profile"
+    echo "  profile_file = the job profile file (XML file)"
+    echo "  input_file   = the input specifications file (XML file)"
+    echo "  cluster_file = the cluster specifications file (XML file)"
+    echo "  conf_file    = optional job configuration file (XML file)"
+    echo "  output_file  = optional file to write the output to"
+    echo ""
+    echo "Descriptions of 'question':"
+    echo "  time      Display the execution time of the predicted job"
+    echo "  details   Display the statistics of the predicted job"
+    echo "  profile   Display the predicted profile of the job"
+    echo "  timeline  Display the timeline of the predicted job"
+    echo "  mappers   Display the mappers of the predicted job"
+    echo "  reducers  Display the reducers of the predicted job"
+    echo ""
+  fi
+  echo "Detailed usage instructions:"
+  echo "  $0 help"
   echo ""
-  echo "Descriptions of 'question':"
-  echo "  job_time     Display the execution time of the predicted job"
-  echo "  details      Display the statistics of the predicted job"
-  echo "  profile      Display the predicted profile of the job"
-  echo "  timeline     Display the timeline of the predicted job"
-  echo "  mappers      Display the mappers of the predicted job"
-  echo "  reducers     Display the reducers of the predicted job"
+  echo "  Global parameters are set in bin/config.sh"
   echo ""
   exit 1
 fi
 
+# Perform common tasks like load configurations and initializations
+bin=`dirname "$0"`
+. "$bin"/common.sh
+
+if test ! -e $PROFILER_OUTPUT_DIR; then
+   echo "ERROR: The directory '$PROFILER_OUTPUT_DIR' does not exist."
+   exit -1
+fi
+
+
 # Get and check the what-if question
 QUESTION=$1
 shift
-if [ "$QUESTION" != "job_time" ] && 
+if [ "$QUESTION" != "time" ] && 
    [ "$QUESTION" != "details" ] && 
    [ "$QUESTION" != "profile" ] && 
    [ "$QUESTION" != "timeline" ] && 
    [ "$QUESTION" != "mappers" ] && 
    [ "$QUESTION" != "reducers" ]; then
-  echo "ERROR: Unsupported mode: $QUESTION"
-  echo "       modes = job_time|details|profile|timeline|mappers|reducers"
+  echo "ERROR: Unsupported question: $QUESTION"
+  echo "       question = time|details|timeline|mappers|reducers|profile"
   exit -1
 fi
 HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.whatif.mode=${QUESTION}"
 
-# Get the job profile file
-PROFILE_FILE=$1
+# Get the job id OR profile file
+PROFILE_ID=$1
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.whatif.profile.id=${PROFILE_ID}"
 shift
-if test ! -e $PROFILE_FILE; then
-   echo "ERROR: The file '$PROFILE_FILE' does not exist."
-   exit -1
+
+
+if [ "$1" = "hadoop" ]; then
+
+   # HADOOP WHAT_IF QUESTION ON A LIVE CLUSTER
+   ################################################################
+
+   # Specify the Java agent
+   HADOOP_OPTS="${HADOOP_OPTS} -javaagent:${MASTER_BTRACE_DIR}/btrace-agent.jar=dumpClasses=false,debug=false,unsafe=true,probeDescPath=.,noServer=true,stdout,script=${MASTER_BTRACE_DIR}/BTraceWhatIf.class"
+
+   # Add the whatif jar to the Hadoop classpath
+   HADOOP_CLASSPATH_OLD=$HADOOP_CLASSPATH
+   HADOOP_CLASSPATH=`ls $BASE_DIR/starfish-*-whatif.jar`
+   if [ "$HADOOP_CLASSPATH_OLD" != "" ]; then
+     HADOOP_CLASSPATH=${HADOOP_CLASSPATH}:${HADOOP_CLASSPATH_OLD}
+   fi
+
+   # Add any user-defined jars to the Hadoop classpath
+   shift
+   OLD_IFS="$IFS"
+   IFS=" "
+   args=( $@ )
+
+   size=${#@};
+   for (( i = 0 ; i < size ; i++ ));
+   do
+     if [ "${args[${i}]}" = "-libjars" ]; then
+       IFS=","
+       for userjar in ${args[${i}+1]}
+       do
+          HADOOP_CLASSPATH="${HADOOP_CLASSPATH}:$userjar"
+       done
+     fi
+   done
+   IFS="$OLD_IFS"
+
+   # Export the required parameters
+   export HADOOP_OPTS
+   export HADOOP_CLASSPATH
+
+   # Run the command
+   ${HADOOP_HOME}/bin/hadoop "$@"
+
+else
+
+   # HADOOP WHAT_IF QUESTION ON A HYPOTHETICAL CLUSTER
+   ################################################################
+
+   if test ! -e $PROFILE_ID; then
+      echo "ERROR: The file '$PROFILE_ID' does not exist."
+      exit -1
+   fi
+
+   if [ "$#" != "2" ] && [ "$#" != "4" ] && [ "$#" != "6" ]; then
+     echo "Invalid number of parameters!"
+     echo "Usage with a HYPOTHETICAL cluster:"
+     echo "  $0 question profile_file input_file cluster_file conf_file [output_file]"
+     echo ""
+     exit -1
+   fi
+
+   # Get the input file
+   INPUT_FILE=$1
+   shift
+   if test ! -e $INPUT_FILE; then
+      echo "ERROR: The file '$INPUT_FILE' does not exist."
+      exit -1
+   fi
+
+   # Get the cluster file
+   CLUSTER_FILE=$1
+   shift
+   if test ! -e $CLUSTER_FILE; then
+      echo "ERROR: The file '$CLUSTER_FILE' does not exist."
+      exit -1
+   fi
+
+   # Get the optional conf file
+   if [ "$1" == "-c" ]; then
+      shift
+      CONF_FILE=$1
+      shift
+      if test ! -e $CONF_FILE; then
+         echo "ERROR: The file '$CONF_FILE' does not exist."
+         exit -1
+      fi
+   fi
+
+   # Get the optional output file
+   if [ "$1" == "-o" ]; then
+      shift
+      OUTPUT_FILE=$1
+      shift
+      if test -e $OUTPUT_FILE; then
+         echo "ERROR: The file '$OUTPUT_FILE' already exist."
+         exit -1
+      fi
+   fi
+
+   # Get the whatif jar
+   WHATIF=`ls $BASE_DIR/starfish-*-whatif.jar`
+
+   # Build the parameters
+   PARAMS="-mode $QUESTION -profile $PROFILE_ID -input $INPUT_FILE -cluster $CLUSTER_FILE"
+
+   if [ "$CONF_FILE" != "" ]; then
+     PARAMS="$PARAMS -conf $CONF_FILE"
+   fi
+   
+   if [ "$OUTPUT_FILE" != "" ]; then
+     PARAMS="$PARAMS -output $OUTPUT_FILE"
+   fi
+
+
+   # Run the command
+   ${HADOOP_HOME}/bin/hadoop jar $WHATIF $PARAMS
+
 fi
-HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.whatif.profile.file=${PROFILE_FILE}"
-
-
-# Perform common tasks like Load configurations and initializations
-bin=`dirname "$0"`
-. "$bin"/common.sh
-
-
-# Specify the Java agent
-HADOOP_OPTS="${HADOOP_OPTS} -javaagent:${MASTER_BTRACE_DIR}/btrace-agent.jar=dumpClasses=false,debug=false,unsafe=true,probeDescPath=.,noServer=true,stdout,script=${MASTER_BTRACE_DIR}/BTraceWhatIf.class"
-
-# Add the whatif jar to the classpath
-HADOOP_CLASSPATH_OLD=$HADOOP_CLASSPATH
-HADOOP_CLASSPATH=`ls $BASE_DIR/starfish-*-whatif.jar`
-if [ "$HADOOP_CLASSPATH_OLD" != "" ]; then
-  HADOOP_CLASSPATH=${HADOOP_CLASSPATH}:${HADOOP_CLASSPATH_OLD}
-fi
-
-# Add any user-defined jars to the classpath
-OLD_IFS="$IFS"
-IFS=" "
-args=( $@ )
-
-size=${#@};
-for (( i = 0 ; i < size ; i++ ));
-do
-  if [ "${args[${i}]}" = "-libjars" ]; then
-     IFS=","
-     for userjar in ${args[${i}+1]}
-     do
-        HADOOP_CLASSPATH="${HADOOP_CLASSPATH}:$userjar"
-     done
-  fi
-done
-IFS="$OLD_IFS"
-
-# Export the required parameters
-export HADOOP_OPTS
-export HADOOP_CLASSPATH
-
-# Run the command
-${HADOOP_HOME}/bin/hadoop "$@"
 

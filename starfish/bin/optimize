@@ -14,127 +14,234 @@
 
 
 # if no args specified, show usage
-if [ $# = 0 ]; then
-  echo "Usage: $0 mode profileFile jar jarFile [mainClass] [genericOptions] args..."
+if [ $# = 0 ] || [ "$1" == "help" ]; then
+  echo "Hadoop usage with a LIVE cluster:"
+  echo "  $0 {recommend|run} job_id hadoop jar jarFile [mainClass] [genericOptions] args..."
   echo ""
-  echo "  mode        = run|recommend"
-  echo "  profileFile = the job profile XML file"
+  if [ "$1" == "help" ]; then
+    echo "  recommend   = display the recommended configuration settings"
+    echo "  run         = display the job with automatically selected settings"
+    echo "  job_id      = the job id of the profiled job"
+    echo ""
+  fi
+  if [ "$1" == "help" ]; then
+    echo "Usage with a HYPOTHETICAL cluster:"
+    echo "  $0 profile_file input_file cluster_file [-c conf_file] [-o output_file]"
+    echo ""
+    echo "  profile_file = the job profile file (XML file)"
+    echo "  input_file   = the input specifications file (XML file)"
+    echo "  cluster_file = the cluster specifications file (XML file)"
+    echo "  conf_file    = optional job configuration file (XML file)"
+    echo "  output_file  = optional file to write the output to"
+    echo ""
+  fi
+  echo "Detailed usage instructions:"
+  echo "  $0 help"
   echo ""
-  echo "Description of modes:"
-  echo "  run        Run a job with the optimized job configuration"
-  echo "  recommend  Recommend a job configuration"
-  echo ""
-  echo "Optimizer-related parameters are set in bin/config.sh"
+  echo "Global parameters are set in bin/config.sh"
   echo ""
   exit 1
 fi
 
-# Get and check the execution mode
-MODE=$1
-shift
-if [ "$MODE" != "run" ] && 
-   [ "$MODE" != "recommend" ]; then
-  echo "ERROR: Unsupported mode: $MODE"
-  echo "       modes = run|recommend"
-  exit -1
-fi
-HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.job.optimizer.mode=${MODE}"
-
-# Get the job profile file
-PROFILE_FILE=$1
-shift
-if test ! -e $PROFILE_FILE; then
-   echo "ERROR: The file '$PROFILE_FILE' does not exist."
-   exit -1
-fi
-HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.job.optimizer.profile.file=${PROFILE_FILE}"
-
-
-# Perform common tasks like Load configurations and initializations
+# Perform common tasks like load configurations and initializations
 bin=`dirname "$0"`
 . "$bin"/common.sh
 
-
-# Get the job optimizer to use
-if [ "$JOB_OPTIMIZER_TYPE" = "" ]; then
-  JOB_OPTIMIZER_TYPE=smart_rrs
-fi
-if [ "$JOB_OPTIMIZER_TYPE" != "full" ] && 
-   [ "$JOB_OPTIMIZER_TYPE" != "smart_full" ] && 
-   [ "$JOB_OPTIMIZER_TYPE" != "rrs" ] && 
-   [ "$JOB_OPTIMIZER_TYPE" != "smart_rrs" ]; then
-  echo "ERROR: Unsupported optimizer type: $JOB_OPTIMIZER_TYPE"
-  echo "       Supported types: full, smart_full, rrs, smart_rrs"
-  exit -1
-fi
-HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.job.optimizer.type=${JOB_OPTIMIZER_TYPE}"
-
-# Get the task scheduler to use
-if [ "$TASK_SCHEDULER" = "" ]; then
-  TASK_SCHEDULER=advanced
-fi
-if [ "$TASK_SCHEDULER" != "basic" ] &&
-   [ "$TASK_SCHEDULER" != "advanced" ]; then
-  echo "ERROR: Unsupported task scheduler type: $TASK_SCHEDULER"
-  echo "       Supported types: basic, advanced"
-  exit -1
-fi
-HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.whatif.task.scheduler=${TASK_SCHEDULER}"
-
-# Get the excluded parameters
-HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.job.optimizer.exclude.parameters=${EXCLUDE_PARAMETERS}"
-
-# Get the output location
-if [ "$OUTPUT_LOCATION" = "" ]; then
-  OUTPUT_LOCATION=stdout
-fi
-HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.job.optimizer.output=${OUTPUT_LOCATION}"
-
-# Get the number of values to consider per parameter
-if [ "$JOB_OPTIMIZER_NUM_VALUES_PER_PARAM" = "" ]; then
-  JOB_OPTIMIZER_NUM_VALUES_PER_PARAM=2
-fi
-HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.job.optimizer.num.values.per.param=${JOB_OPTIMIZER_NUM_VALUES_PER_PARAM}"
-
-# Get flag for optimizer to use random or equi-distance values per parameter
-if [ "$JOB_OPTIMIZER_USE_RANDOM_VALUES" = "" ]; then
-  JOB_OPTIMIZER_USE_RANDOM_VALUES=false
-fi
-HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.job.optimizer.use.random.values=${JOB_OPTIMIZER_USE_RANDOM_VALUES}"
-
-
-# Specify the Java agent
-HADOOP_OPTS="${HADOOP_OPTS} -javaagent:${MASTER_BTRACE_DIR}/btrace-agent.jar=dumpClasses=false,debug=false,unsafe=true,probeDescPath=.,noServer=true,stdout,script=${MASTER_BTRACE_DIR}/BTraceJobOptimizer.class"
-
-# Add the optimizer jar to the classpath
-HADOOP_CLASSPATH_OLD=$HADOOP_CLASSPATH
-HADOOP_CLASSPATH=`ls $BASE_DIR/starfish-*-job-optimizer.jar`
-if [ "$HADOOP_CLASSPATH_OLD" != "" ]; then
-  HADOOP_CLASSPATH=${HADOOP_CLASSPATH}:${HADOOP_CLASSPATH_OLD}
+if test ! -e $PROFILER_OUTPUT_DIR; then
+   echo "ERROR: The directory '$PROFILER_OUTPUT_DIR' does not exist."
+   exit -1
 fi
 
-# Add any user-defined jars to the classpath
-OLD_IFS="$IFS"
-IFS=" "
-args=( $@ )
+# Get the execution mode
+MODE=$1
+shift
 
-size=${#@};
-for (( i = 0 ; i < size ; i++ ));
-do
-  if [ "${args[${i}]}" = "-libjars" ]; then
-     IFS=","
-     for userjar in ${args[${i}+1]}
-     do
-        HADOOP_CLASSPATH="${HADOOP_CLASSPATH}:$userjar"
-     done
-  fi
-done
-IFS="$OLD_IFS"
+if [ "$MODE" == "run" ] || [ "$MODE" == "recommend" ]; then
 
-# Export the required parameters
-export HADOOP_OPTS
-export HADOOP_CLASSPATH
+   # OPTIMIZE ON A LIVE CLUSTER
+   ################################################################
 
-# Run the command
-${HADOOP_HOME}/bin/hadoop "$@"
+   HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.job.optimizer.mode=${MODE}"
+
+   # Get the profile id
+   PROFILE_ID=$1
+   shift
+   HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.job.optimizer.profile.id=${PROFILE_ID}"
+
+   # Get the job optimizer to use
+   if [ "$JOB_OPTIMIZER_TYPE" = "" ]; then
+     JOB_OPTIMIZER_TYPE=smart_rrs
+   fi
+   if [ "$JOB_OPTIMIZER_TYPE" != "full" ] && 
+      [ "$JOB_OPTIMIZER_TYPE" != "smart_full" ] && 
+      [ "$JOB_OPTIMIZER_TYPE" != "rrs" ] && 
+      [ "$JOB_OPTIMIZER_TYPE" != "smart_rrs" ]; then
+     echo "ERROR: Unsupported optimizer type: $JOB_OPTIMIZER_TYPE"
+     echo "       Supported types: full, smart_full, rrs, smart_rrs"
+     exit -1
+   fi
+   HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.job.optimizer.type=${JOB_OPTIMIZER_TYPE}"
+
+   # Get the task scheduler to use
+   if [ "$TASK_SCHEDULER" = "" ]; then
+     TASK_SCHEDULER=advanced
+   fi
+   if [ "$TASK_SCHEDULER" != "basic" ] &&
+      [ "$TASK_SCHEDULER" != "advanced" ]; then
+     echo "ERROR: Unsupported task scheduler type: $TASK_SCHEDULER"
+     echo "       Supported types: basic, advanced"
+     exit -1
+   fi
+   HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.whatif.task.scheduler=${TASK_SCHEDULER}"
+
+   # Get the excluded parameters
+   HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.job.optimizer.exclude.parameters=${EXCLUDE_PARAMETERS}"
+
+   # Get the output location
+   if [ "$OUTPUT_LOCATION" = "" ]; then
+     OUTPUT_LOCATION=stdout
+   fi
+   HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.job.optimizer.output=${OUTPUT_LOCATION}"
+
+   # Get the dataflow optimizer type
+   if [ "$DATAFLOW_OPTIMIZER_TYPE" = "" ]; then
+     DATAFLOW_OPTIMIZER_TYPE=cross_jobs
+   fi
+   HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.dataflow.optimizer.type=${DATAFLOW_OPTIMIZER_TYPE}"
+
+   # Get the dataflow optimization style
+   if [ "$DATAFLOW_OPTIMIZER_STYLE" = "" ]; then
+     DATAFLOW_OPTIMIZER_STYLE=dynamic
+   fi
+   HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.dataflow.optimizer.style=${DATAFLOW_OPTIMIZER_STYLE}"
+
+
+   # Get the execution system (hadoop)
+   SYSTEM=$1
+   shift
+   if [ "$SYSTEM" != "hadoop" ]; then
+     echo "ERROR: Expected 'hadoop' not $SYSTEM"
+     exit -1
+   fi
+
+
+   if [ "$SYSTEM" == "hadoop" ]; then
+
+      # HADOOP OPTIMIZATION
+      ################################################################
+
+      # Specify the Java agent
+      HADOOP_OPTS="${HADOOP_OPTS} -javaagent:${MASTER_BTRACE_DIR}/btrace-agent.jar=dumpClasses=false,debug=false,unsafe=true,probeDescPath=.,noServer=true,stdout,script=${MASTER_BTRACE_DIR}/BTraceJobOptimizer.class"
+
+      # Add the optimizer jar to the classpath
+      HADOOP_CLASSPATH_OLD=$HADOOP_CLASSPATH
+      HADOOP_CLASSPATH=`ls $BASE_DIR/starfish-*-job-optimizer.jar`
+      if [ "$HADOOP_CLASSPATH_OLD" != "" ]; then
+        HADOOP_CLASSPATH=${HADOOP_CLASSPATH}:${HADOOP_CLASSPATH_OLD}
+      fi
+
+      # Add any user-defined jars to the classpath
+      OLD_IFS="$IFS"
+      IFS=" "
+      args=( $@ )
+
+      size=${#@};
+      for (( i = 0 ; i < size ; i++ ));
+      do
+        if [ "${args[${i}]}" = "-libjars" ]; then
+          IFS=","
+          for userjar in ${args[${i}+1]}
+          do
+             HADOOP_CLASSPATH="${HADOOP_CLASSPATH}:$userjar"
+          done
+        fi
+      done
+      IFS="$OLD_IFS"
+
+      # Export the required parameters
+      export HADOOP_OPTS
+      export HADOOP_CLASSPATH
+
+      # Run the command
+      ${HADOOP_HOME}/bin/hadoop "$@"
+   fi
+   
+else
+
+   # OPTIMIZE ON A HYPOTHETICAL CLUSTER
+   ################################################################
+
+   if [ "$#" != "3" ] && [ "$#" != "5" ] && [ "$#" != "7" ]; then
+     echo "Invalid number of parameters!"
+     echo "Usage with a HYPOTHETICAL cluster:"
+     echo "  $0 profile_file input_file cluster_file [-c conf_file] [-o output_file]"
+     echo ""
+     exit -1
+   fi
+
+   # Get the profile file
+   PROFILE_FILE=$1
+   shift
+   if test ! -e $PROFILE_FILE; then
+      echo "ERROR: The file '$PROFILE_FILE' does not exist."
+      exit -1
+   fi
+
+   # Get the input file
+   INPUT_FILE=$1
+   shift
+   if test ! -e $INPUT_FILE; then
+      echo "ERROR: The file '$INPUT_FILE' does not exist."
+      exit -1
+   fi
+
+   # Get the cluster file
+   CLUSTER_FILE=$1
+   shift
+   if test ! -e $CLUSTER_FILE; then
+      echo "ERROR: The file '$CLUSTER_FILE' does not exist."
+      exit -1
+   fi
+
+   # Get the optional conf file
+   if [ "$1" == "-c" ]; then
+      shift
+      CONF_FILE=$1
+      shift
+      if test ! -e $CONF_FILE; then
+         echo "ERROR: The file '$CONF_FILE' does not exist."
+         exit -1
+      fi
+   fi
+
+   # Get the optional output file
+   if [ "$1" == "-o" ]; then
+      shift
+      OUTPUT_FILE=$1
+      shift
+      if test -e $OUTPUT_FILE; then
+         echo "ERROR: The file '$OUTPUT_FILE' already exist."
+         exit -1
+      fi
+   fi
+
+   # Get the whatif jar
+   OPTIMIZER=`ls $BASE_DIR/starfish-*-job-optimizer.jar`
+
+   # Build the parameters
+   PARAMS="-profile $PROFILE_FILE -input $INPUT_FILE -cluster $CLUSTER_FILE"
+
+   if [ "$CONF_FILE" != "" ]; then
+     PARAMS="$PARAMS -conf $CONF_FILE"
+   fi
+
+   if [ "$OUTPUT_FILE" != "" ]; then
+     PARAMS="$PARAMS -output $OUTPUT_FILE"
+   fi
+
+
+   # Run the command
+   ${HADOOP_HOME}/bin/hadoop jar $OPTIMIZER $PARAMS
+
+fi
 

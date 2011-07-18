@@ -6,8 +6,9 @@
 <configuration>
 
   <property>
-    <name>btrace.profile.dir</name>
-    <value>/home/hero/Starfish/starfish/src/profile/dist/hadoop-btrace</value>
+    <name>starfish.profiler.btrace.dir</name>
+    <value>/home/hero/Starfish/starfish/build/btrace</value>
+    <description>SET THIS PARAMETER---Directory on slave machines containing the BTrace scripts.</description>
   </property>
 
   <property>
@@ -27,7 +28,7 @@
 
   <property>
     <name>mapred.task.profile.params</name>
-    <value>-javaagent:${btrace.profile.dir}/btrace-agent.jar=dumpClasses=false,debug=false,unsafe=true,probeDescPath=.,noServer=true,script=${btrace.profile.dir}/HadoopBTrace.class,scriptOutputFile=%s</value>
+    <value>-javaagent:${starfish.profiler.btrace.dir}/btrace-agent.jar=dumpClasses=false,debug=false,unsafe=true,probeDescPath=.,noServer=true,script=${starfish.profiler.btrace.dir}/BTraceTaskProfile.class,scriptOutputFile=%s</value>
   </property>
 
   <property>
@@ -37,6 +38,11 @@
   
   <property>
     <name>mapred.map.tasks.speculative.execution</name>
+    <value>false</value>
+  </property>
+
+  <property>
+    <name>mapred.reduce.tasks.speculative.execution</name>
     <value>false</value>
   </property>
 
@@ -53,16 +59,6 @@
   <property>
     <name>mapred.job.reduce.input.buffer.percent</name>
     <value>0.0</value>
-  </property>
-
-  <property>
-    <name>mapred.compress.map.output</name>
-    <value>true</value>
-  </property>
-
-  <property>
-    <name>mapred.output.compress</name>
-    <value>true</value>
   </property>
 
 </configuration>

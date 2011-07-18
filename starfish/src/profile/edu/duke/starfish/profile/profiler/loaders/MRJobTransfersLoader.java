@@ -45,16 +45,16 @@ public class MRJobTransfersLoader {
 	private static final String SYSLOG = "syslog";
 	private static final String TRANSFERS = "transfers_";
 
-	private static final String INFO_SHUFFLING = "INFO org.apache.hadoop.mapred.ReduceTask: Shuffling";
-	private static final String INFO_READ_SHUFFLE = "INFO org.apache.hadoop.mapred.ReduceTask: Read";
-	private static final String INFO_FAILED_SHUFFLE = "INFO org.apache.hadoop.mapred.ReduceTask: Failed to shuffle from";
+	private static final String INFO_SHUFFLING = "org.apache.hadoop.mapred.ReduceTask: Shuffling";
+	private static final String INFO_READ_SHUFFLE = "org.apache.hadoop.mapred.ReduceTask: Read";
+	private static final String INFO_FAILED_SHUFFLE = "org.apache.hadoop.mapred.ReduceTask: Failed to shuffle from";
 
 	private static final Pattern SHUFFLE_PATTERN = Pattern
-			.compile("([\\d-:, ]+) INFO .* (\\d+) bytes \\((\\d+) raw bytes\\) .* from ([\\w\\d_]+)");
+			.compile("([\\d-:, ]+) (INFO|DEBUG) .* (\\d+) bytes \\((\\d+) raw bytes\\) .* from ([\\w\\d_]+)");
 	private static final Pattern READ_PATTERN = Pattern
-			.compile("([\\d-:, ]+) INFO .* for ([\\w\\d_]+)");
+			.compile("([\\d-:, ]+) (INFO|DEBUG) .* for ([\\w\\d_]+)");
 	private static final Pattern FAILED_PATTERN = Pattern
-			.compile("([\\d-:, ]+) INFO .* from ([\\w\\d_]+)");
+			.compile("([\\d-:, ]+) (INFO|DEBUG) .* from ([\\w\\d_]+)");
 
 	/**
 	 * Constructor
@@ -107,6 +107,10 @@ public class MRJobTransfersLoader {
 			return true;
 		}
 
+		// No data transfers for a map-only job
+		if (mrJob.isMapOnly())
+			return false;
+
 		// Load the data
 		this.mrJob = mrJob;
 
@@ -120,15 +124,15 @@ public class MRJobTransfersLoader {
 
 		// Parse the syslog for each successful reduce attempt
 		boolean success = false;
-		List<DataTransfer> reducerTransfer;
+		List<DataTransfer> reducerTransfers;
 		for (MRReduceAttemptInfo mrReduceAttempt : mrJob
 				.getReduceAttempts(MRExecutionStatus.SUCCESS)) {
 
 			try {
-				reducerTransfer = parseReducerSyslog(filesDir, mrReduceAttempt);
-				if (reducerTransfer != null) {
+				reducerTransfers = parseReducerSyslog(filesDir, mrReduceAttempt);
+				if (reducerTransfers != null && !reducerTransfers.isEmpty()) {
 					success = true;
-					mrJob.addDataTransfers(reducerTransfer);
+					mrJob.addDataTransfers(reducerTransfers);
 				}
 			} catch (ParseException e) {
 				e.printStackTrace();
@@ -201,7 +205,7 @@ public class MRJobTransfersLoader {
 					Matcher matcher = SHUFFLE_PATTERN.matcher(line);
 					if (matcher.find()) {
 						// Find the transfer source (map task attempt)
-						String mapAttemptId = matcher.group(4);
+						String mapAttemptId = matcher.group(5);
 						MRMapAttemptInfo mrMapAttempt = mrJob
 								.findMRMapAttempt(mapAttemptId);
 						if (mrMapAttempt == null) {
@@ -214,8 +218,8 @@ public class MRJobTransfersLoader {
 						// Create the data transfer
 						DataTransfer transfer = new DataTransfer(mrMapAttempt,
 								mrReduceAttempt, Long.parseLong(matcher
-										.group(3)), Long.parseLong(matcher
-										.group(2)));
+										.group(4)), Long.parseLong(matcher
+										.group(3)));
 						transfer.setStartTime(DATE_FORMAT.parse(matcher
 								.group(1)));
 
@@ -237,7 +241,7 @@ public class MRJobTransfersLoader {
 					Matcher matcher = READ_PATTERN.matcher(line);
 					if (matcher.find()) {
 						// Find the data transfer in the map
-						String mapAttemptId = matcher.group(2);
+						String mapAttemptId = matcher.group(3);
 						if (emptyTransfers.containsKey(mapAttemptId)) {
 							// Found an empty transfer, remove it from the cache
 							emptyTransfers.remove(mapAttemptId);
@@ -269,7 +273,7 @@ public class MRJobTransfersLoader {
 					Matcher matcher = FAILED_PATTERN.matcher(line);
 					if (matcher.find()) {
 						// Find and remove the data transfer from the map
-						String mapAttemptId = matcher.group(2);
+						String mapAttemptId = matcher.group(3);
 						if (startedTransfers.containsKey(mapAttemptId)) {
 							startedTransfers.remove(mapAttemptId);
 							emptyTransfers.remove(mapAttemptId);

@@ -13,6 +13,7 @@ import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
 import edu.duke.starfish.profile.profileinfo.metrics.Metric;
 import edu.duke.starfish.profile.profileinfo.metrics.MetricType;
 import edu.duke.starfish.profile.profileinfo.setup.HostInfo;
+import edu.duke.starfish.profile.utils.ProfileUtils;
 import edu.duke.starfish.whatif.data.DataSetModel;
 import edu.duke.starfish.whatif.data.FixedInputSpecsDataSetModel;
 import edu.duke.starfish.whatif.data.MapInputSpecs;
@@ -273,7 +274,7 @@ public class VirtualMRJobManager implements IMRInfoManager {
 		boolean success = true;
 		if (updateTransfers) {
 			// Need to generate the new data transfers
-			success = WhatIfUtils.generateDataTransfers(job, conf);
+			success = ProfileUtils.generateDataTransfers(job, conf);
 			updateTransfers = false;
 		}
 
@@ -290,11 +291,11 @@ public class VirtualMRJobManager implements IMRInfoManager {
 		// Create the necessary parameters for the What-if Engine
 		JobProfileOracle jobOracle = new JobProfileOracle(sourceProfile);
 		DataSetModel dataModel = new FixedInputSpecsDataSetModel(specs);
-		BasicFIFOScheduler scheduler = new BasicFIFOScheduler();
+		BasicFIFOScheduler scheduler = new BasicFIFOScheduler(cluster);
 
 		// Ask the what-if question
 		WhatIfEngine whatifEngine = new WhatIfEngine(jobOracle, dataModel,
-				scheduler, cluster, conf);
+				scheduler);
 		job = whatifEngine.whatIfJobConfGetJobInfo(conf);
 	}
 }

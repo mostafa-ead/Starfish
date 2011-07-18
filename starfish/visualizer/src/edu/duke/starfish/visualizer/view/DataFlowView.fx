@@ -30,8 +30,8 @@ import java.util.HashMap;
 import edu.duke.starfish.profile.profileinfo.IMRInfoManager;
 import edu.duke.starfish.profile.profileinfo.execution.jobs.MRJobInfo;
 import edu.duke.starfish.profile.profileinfo.ClusterConfiguration;
-import edu.duke.starfish.profile.profileinfo.utils.ProfileUtils;
-import edu.duke.starfish.whatif.WhatIfUtils;
+import edu.duke.starfish.profile.utils.GeneralUtils;
+import edu.duke.starfish.profile.utils.ProfileUtils;
 import edu.duke.starfish.visualizer.view.custom.ToolTip;
 import edu.duke.starfish.visualizer.model.transfers.DataFlowModel;
 import edu.duke.starfish.visualizer.model.transfers.HostTransfers;
@@ -219,10 +219,10 @@ class DataEdge extends CustomNode {
 	    
 		toolTipTotalsContent = 	"From : {vertex1.displayName}\n"
 							 	"To : {vertex2.displayName}\n"
-							 	"Data : {ProfileUtils.getFormattedSize(size1)}\n"
+							 	"Data : {GeneralUtils.getFormattedSize(size1)}\n"
 							 	"From : {vertex2.displayName}\n"
 							 	"To : {vertex1.displayName}\n"
-							 	"Data :  {ProfileUtils.getFormattedSize(size2)}";
+							 	"Data :  {GeneralUtils.getFormattedSize(size2)}";
 	    
 		line = Line {
 			startX : bind vertex1.centerX
@@ -246,10 +246,10 @@ class DataEdge extends CustomNode {
 				toolTipContent = 
 					"From : {vertex1.displayName}\n"
 					"To : {vertex2.displayName}\n"
-					"Data : {ProfileUtils.getFormattedSize(size1PerInterval[(currentTime / timePerInterval) as Integer])}\n"
+					"Data : {GeneralUtils.getFormattedSize(size1PerInterval[(currentTime / timePerInterval) as Integer])}\n"
 					"From : {vertex2.displayName}\n"
 					"To : {vertex1.displayName}\n"
-					"Data :  {ProfileUtils.getFormattedSize(size2PerInterval[(currentTime / timePerInterval) as Integer])}";
+					"Data :  {GeneralUtils.getFormattedSize(size2PerInterval[(currentTime / timePerInterval) as Integer])}";
 		    }
 		    
 			// Enable the toolTip
@@ -287,7 +287,7 @@ class DataArc extends CustomNode {
 	    
 		toolTipTotalsContent = 	"From : {vertex.displayName}\n"
 							 	"To : {vertex.displayName}\n"
-							 	"Data : {ProfileUtils.getFormattedSize(size)}";
+							 	"Data : {GeneralUtils.getFormattedSize(size)}";
 	    
 		arc = Arc {
 			centerX : bind vertex.centerX + 15 * cos(vertex.angle)
@@ -312,7 +312,7 @@ class DataArc extends CustomNode {
 				toolTipContent = 
 					"From : {vertex.displayName}\n"
 					"To : {vertex.displayName}\n"
-					"Data : {ProfileUtils.getFormattedSize(sizePerInterval[(currentTime / timePerInterval) as Integer])}";
+					"Data : {GeneralUtils.getFormattedSize(sizePerInterval[(currentTime / timePerInterval) as Integer])}";
 		    }
 		    
 		    // Enable the toolTip
@@ -352,6 +352,7 @@ public class DataFlowView extends AppView {
     ///////////////////////
     // VIEW VARIABLES    //
     ///////////////////////
+	var noteText: Text;
 	var errorText: Text;
 	var toolTip: ToolTip = ToolTip {textWrappingWidth: 300};
 	var hoverOverHost: Boolean = false;
@@ -738,9 +739,9 @@ public class DataFlowView extends AppView {
 		// Current time
 		var timeText = Text {
 			content : bind 	if (showTotalTransfers) 
-								ProfileUtils.getFormattedDuration(jobDuration as Long)
+								GeneralUtils.getFormattedDuration(jobDuration as Long)
 							else
-								ProfileUtils.getFormattedDuration(currentTime as Long)
+								GeneralUtils.getFormattedDuration(currentTime as Long)
 			x : bind width - 120
 			y : bind height - 60
 		}
@@ -764,10 +765,33 @@ public class DataFlowView extends AppView {
 	 */
 	override function createView(): Void {
 	    
+	    // Check for a map-only job
+	    if (job.isMapOnly()) {
+	        errorText = Text {
+   				content : "Job {job.getExecId()} is map-only, no data transfers occurred!"
+   				x : 40
+   				y : 75
+   				wrappingWidth: bind width - 40
+   				font : COMMON_FONT_16
+   	        }
+   	        return;
+	    }
+	    
+	    // Load the data transfers
 	    var success: Boolean = manager.loadDataTransfersForMRJob(job);
 	    if ((not success) and manager.loadProfilesForMRJob(job)) {
 	        var conf = manager.getHadoopConfiguration(job.getExecId());
-	        success = WhatIfUtils.generateDataTransfers(job, conf);
+	        success = ProfileUtils.generateDataTransfers(job, conf);
+	        
+	        if (success) {
+		        noteText = Text {
+	   				content : "NOTE: Transfers estimated based on profiles!"
+	   				layoutX : 20
+	   				layoutY : bind startY + paneHeight + 120
+	   				wrappingWidth: bind menuWidth - 40
+	   				font : COMMON_FONT_12
+	   	        }
+	        }
 	    }
 	    
 	    if(not success) {
@@ -827,7 +851,8 @@ public class DataFlowView extends AppView {
             	Group { content : bind vertices},
             	timeBox,
             	toolTip,
-         		errorText
+         		errorText,
+         		noteText
 			];
        	};    
     }

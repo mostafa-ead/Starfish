@@ -127,6 +127,27 @@ public class VirtualFileSystem {
 	}
 
 	/**
+	 * Checks if the specified path exists in the file system
+	 * 
+	 * @param fullPath
+	 *            the full path (supports glob)
+	 * @return true if the path exists
+	 * @throws VirtualFSException
+	 *             if full path invalid
+	 */
+	public boolean containFiles(String fullPath) throws VirtualFSException {
+
+		if (!fullPath.startsWith(SEPARATOR))
+			throw new VirtualFSException("Not a full path: " + fullPath);
+
+		String[] paths = fullPath.split(SEPARATOR);
+		if (paths.length == 0)
+			return true;
+		else
+			return containFiles(root, paths, 0);
+	}
+
+	/**
 	 * Delete all files represented by the provided full path
 	 * 
 	 * @param fullPath
@@ -256,6 +277,40 @@ public class VirtualFileSystem {
 	 * PRIVATE METHODS
 	 * ***************************************************************
 	 */
+
+	/**
+	 * Main recursive method to check for the existence of the provided input
+	 * paths.
+	 * 
+	 * @param path
+	 *            the current path
+	 * @param paths
+	 *            the array of the input paths
+	 * @param index
+	 *            the current index in the array of input paths
+	 */
+	private boolean containFiles(VirtualPath path, String[] paths, int index) {
+
+		if (!path.matches(paths[index])) {
+			// No match, stop here
+			return false;
+		}
+
+		if (index == paths.length - 1) {
+			// We have reached a leaf in the path structure
+			return true;
+		}
+
+		if (path.isDir()) {
+			// We have reached an intermediate directory
+			for (VirtualPath child : ((VirtualDir) path).getChildren()) {
+				if (containFiles(child, paths, index + 1))
+					return true;
+			}
+		}
+
+		return false;
+	}
 
 	/**
 	 * Main recursive method to gather files matching the provided input paths.

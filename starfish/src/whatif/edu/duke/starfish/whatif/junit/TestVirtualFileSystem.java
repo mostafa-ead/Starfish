@@ -64,6 +64,41 @@ public class TestVirtualFileSystem extends TestCase {
 	}
 
 	@Test
+	public void testContainFiles() {
+		VirtualFileSystem vfs = new VirtualFileSystem();
+
+		try {
+			vfs.createFile("/dir_1/dir_1_1/file1111.txt", 128 << 20, false,
+					64 << 20, 3);
+			vfs.createFile("/dir_1/dir_1_1/file1112.txt", 64 << 20, true,
+					64 << 20, 3);
+			vfs.createFile("/dir_1/dir_2_1/file1211.txt", 32 << 20, true,
+					64 << 20, 3);
+			vfs.createFile("/dir_2/file21.txt", 378 << 20, false, 64 << 20, 3);
+
+			assertTrue(vfs.containFiles("/"));
+			assertTrue(vfs.containFiles("/dir_1"));
+			assertTrue(vfs.containFiles("/dir_1/"));
+			assertTrue(vfs.containFiles("/dir_1/dir_1_1"));
+			assertTrue(vfs.containFiles("/dir_2/file21.txt"));
+			assertTrue(vfs.containFiles("/dir_1/dir_1_1/file*"));
+			assertTrue(vfs.containFiles("/dir_1/dir_*/file*"));
+			assertTrue(vfs.containFiles("/dir_1/dir_*/*"));
+			assertTrue(vfs.containFiles("/dir_1/dir_*"));
+			assertTrue(vfs.containFiles("/dir_1/dir_1_1/file111[0-2].txt"));
+			assertTrue(vfs.containFiles("/dir_1/dir_1_1/*{111}[0-2].txt"));
+
+			assertFalse(vfs.containFiles("/dir_3"));
+			assertFalse(vfs.containFiles("/dir_1/dir_1_2"));
+			assertFalse(vfs.containFiles("/dir_1/dir_3_*"));
+			assertFalse(vfs.containFiles("/dir_1/dir_1_1/file111[3-4].txt"));
+
+		} catch (VirtualFSException e) {
+			fail(e.getMessage());
+		}
+	}
+
+	@Test
 	public void testListFiles() {
 		VirtualFileSystem vfs = new VirtualFileSystem();
 

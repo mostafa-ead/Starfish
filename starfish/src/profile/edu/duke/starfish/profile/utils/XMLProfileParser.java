@@ -1,4 +1,4 @@
-package edu.duke.starfish.profile.profiler;
+package edu.duke.starfish.profile.utils;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -271,7 +271,7 @@ public class XMLProfileParser {
 
 		// Add the reduce element
 		MRReduceProfile redProfile = jobProfile.getAvgReduceProfile();
-		if (redProfile != null) {
+		if (!redProfile.isEmpty()) {
 			Element reducer = buildTaskProfileElement(redProfile, doc,
 					REDUCE_PROFILE);
 			job.appendChild(reducer);

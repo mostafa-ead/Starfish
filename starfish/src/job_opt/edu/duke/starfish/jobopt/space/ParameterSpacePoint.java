@@ -60,7 +60,7 @@ public class ParameterSpacePoint {
 	 */
 
 	/**
-	 * Set a parameter value
+	 * Add a parameter value
 	 * 
 	 * @param param
 	 *            the parameter
@@ -69,6 +69,16 @@ public class ParameterSpacePoint {
 	 */
 	public void addParamValue(HadoopParameter param, String value) {
 		values.put(param, value);
+	}
+
+	/**
+	 * Add all parameter values from the input point
+	 * 
+	 * @param point
+	 *            the parameter
+	 */
+	public void addParamValues(ParameterSpacePoint point) {
+		values.putAll(point.values);
 	}
 
 	/**

@@ -1,6 +1,6 @@
 package edu.duke.starfish.whatif.virtualfs;
 
-import edu.duke.starfish.profile.profileinfo.utils.ProfileUtils;
+import edu.duke.starfish.profile.utils.GeneralUtils;
 
 /**
  * Represents a virtual file or directory path. Also forms the base class for a
@@ -92,7 +92,7 @@ public abstract class VirtualPath {
 		if (this.name.equals(name))
 			return true;
 
-		return this.name.matches(ProfileUtils.convertGlobToRegEx(name, true));
+		return this.name.matches(GeneralUtils.convertGlobToRegEx(name, true));
 	}
 
 	/**

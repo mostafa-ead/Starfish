@@ -17,7 +17,7 @@ import com.sun.btrace.annotations.Where;
  * @author hero
  */
 @BTrace
-public class HadoopBTraceMem {
+public class BTraceTaskMemProfile {
 
 	/*************************************************************************/
 	/********************************* MAP ***********************************/

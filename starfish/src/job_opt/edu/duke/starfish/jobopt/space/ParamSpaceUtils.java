@@ -1,13 +1,14 @@
 package edu.duke.starfish.jobopt.space;
 
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_RED_TASKS;
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_COMBINE_CLASS;
+import static edu.duke.starfish.profile.utils.Constants.MR_COMBINE_CLASS;
+import static edu.duke.starfish.profile.utils.Constants.MR_RED_TASKS;
 
 import java.util.HashSet;
 import java.util.Set;
 
 import org.apache.hadoop.conf.Configuration;
 
+import edu.duke.starfish.jobopt.optimizer.JobOptimizer;
 import edu.duke.starfish.jobopt.params.BooleanParamDescriptor;
 import edu.duke.starfish.jobopt.params.DoubleParamDescriptor;
 import edu.duke.starfish.jobopt.params.HadoopParameter;
@@ -20,8 +21,7 @@ import edu.duke.starfish.profile.profileinfo.execution.profile.MRMapProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRReduceProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCounter;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRStatistics;
-import edu.duke.starfish.profile.profileinfo.setup.TaskTrackerInfo;
-import edu.duke.starfish.profile.profileinfo.utils.ProfileUtils;
+import edu.duke.starfish.profile.utils.ProfileUtils;
 import edu.duke.starfish.whatif.WhatIfUtils;
 
 /**
@@ -39,8 +39,6 @@ public class ParamSpaceUtils {
 	// Constants
 	private static final long MIN_SORT_MB = 20971520l;
 	private static final float MAX_MEM_RATIO = 0.75f;
-
-	public static final String EXCLUDE_PARAMS = "starfish.job.optimizer.exclude.parameters";
 
 	/* ***************************************************************
 	 * PUBLIC STATIC METHODS
@@ -75,80 +73,137 @@ public class ParamSpaceUtils {
 		// Adjust the max value of io.sort.mb
 		if (space.containsParamDescriptor(HadoopParameter.SORT_MB)) {
 
-			// Find the memory required by the map tasks
-			long mapMemory = 0l;
-			for (MRMapProfile mapProfile : jobProfile.getAvgMapProfiles()) {
-				mapMemory += WhatIfUtils.getMapMemoryRequired(mapProfile);
-			}
-			mapMemory /= jobProfile.getAvgMapProfiles().size();
-
-			// Set the memory left for io.sort.mb
-			long ioSortMem = taskMemory - mapMemory;
-			if (ioSortMem > (long) (MAX_MEM_RATIO * taskMemory))
-				ioSortMem = (long) (MAX_MEM_RATIO * taskMemory);
-			if (ioSortMem < MIN_SORT_MB)
-				ioSortMem = MIN_SORT_MB;
-
-			((IntegerParamDescriptor) space
-					.getParameterDescriptor(HadoopParameter.SORT_MB))
-					.setMaxValue((int) (ioSortMem >> 20));
+			adjustParamDescrSortMB(
+					(IntegerParamDescriptor) space
+							.getParameterDescriptor(HadoopParameter.SORT_MB),
+					jobProfile, taskMemory);
 		}
 
 		// Adjust the max value of mapred.job.reduce.input.buffer.percent
 		if (space.containsParamDescriptor(HadoopParameter.RED_IN_BUFF_PERC)) {
 
-			// Find the memory required by the reduce tasks
-			long redMemory = WhatIfUtils.getReduceMemoryRequired(jobProfile
-					.getAvgReduceProfile());
-
-			// Calculate the percent of memory to be used to buffer input
-			double percent = (taskMemory - redMemory) / (double) taskMemory;
-			if (percent < 0.0)
-				percent = 0;
-			else if (percent > 0.8)
-				percent = 0.8;
-
-			((DoubleParamDescriptor) space
-					.getParameterDescriptor(HadoopParameter.RED_IN_BUFF_PERC))
-					.setMaxValue(percent);
+			adjustParamDescrRedInBufferPerc(
+					(DoubleParamDescriptor) space
+							.getParameterDescriptor(HadoopParameter.RED_IN_BUFF_PERC),
+					jobProfile, taskMemory);
 		}
 
 		// Adjust the min and max number of mapred.reduce.tasks
-		MRReduceProfile redProfile = jobProfile.getAvgReduceProfile();
-		if (space.containsParamDescriptor(HadoopParameter.RED_TASKS)
-				&& redProfile != null) {
+		if (space.containsParamDescriptor(HadoopParameter.RED_TASKS)) {
 
-			// Calculate the (uncompressed) reduce input size
-			double shuffleSize = redProfile.getNumTasks()
-					* redProfile.getCounter(MRCounter.REDUCE_SHUFFLE_BYTES)
-					/ redProfile.getStatistic(
-							MRStatistics.INTERM_COMPRESS_RATIO, 1d);
-
-			// Calculate the number of reduce groups
-			long numGroups = redProfile.getNumTasks()
-					* redProfile.getCounter(MRCounter.REDUCE_INPUT_GROUPS, 1l);
-
-			// Calculate the number of reduce slots
-			int numRedSlots = 0;
-			for (TaskTrackerInfo taskTracker : cluster
-					.getAllTaskTrackersInfos()) {
-				numRedSlots += taskTracker.getNumReduceSlots();
-			}
-
-			// Calculate the min and max number of reducers
-			double min = Math.ceil(shuffleSize / (2 * taskMemory));
-			double max = Math.ceil(4 * shuffleSize / taskMemory);
-			max = Math.min(max, numGroups);
-			max = Math.max(max, numRedSlots);
-			if (max < min)
-				max = min;
-
-			// Set the min and max number of reducers
-			space.addParameterDescriptor(new IntegerParamDescriptor(
-					HadoopParameter.RED_TASKS, ParamTaskEffect.EFFECT_REDUCE,
-					(int) min, (int) max));
+			adjustParamDescrRedTasks(
+					(IntegerParamDescriptor) space
+							.getParameterDescriptor(HadoopParameter.RED_TASKS),
+					jobProfile, taskMemory, cluster.getTotalReduceSlots());
 		}
 
+	}
+
+	/**
+	 * Adjusts the domain of the <tt>io.sort.mb</tt> parameter descriptor based
+	 * on the virtual job profile.
+	 * 
+	 * @param paramDescr
+	 *            the current parameter descriptor
+	 * @param jobProfile
+	 *            the job profile
+	 * @param taskMemory
+	 *            the task memory (in bytes)
+	 */
+	public static void adjustParamDescrSortMB(
+			IntegerParamDescriptor paramDescr, MRJobProfile jobProfile,
+			long taskMemory) {
+
+		// Find the memory required by the map tasks
+		long mapMemory = 0l;
+		for (MRMapProfile mapProfile : jobProfile.getAvgMapProfiles()) {
+			mapMemory += WhatIfUtils.getMapMemoryRequired(mapProfile);
+		}
+		mapMemory /= jobProfile.getAvgMapProfiles().size();
+
+		// Set the memory left for io.sort.mb
+		long ioSortMem = taskMemory - mapMemory;
+		if (ioSortMem > (long) (MAX_MEM_RATIO * taskMemory))
+			ioSortMem = (long) (MAX_MEM_RATIO * taskMemory);
+		if (ioSortMem < MIN_SORT_MB)
+			ioSortMem = MIN_SORT_MB;
+
+		paramDescr.setMaxValue((int) (ioSortMem >> 20));
+	}
+
+	/**
+	 * Adjusts the domain of the <tt>mapred.job.reduce.input.buffer.percent</tt>
+	 * parameter descriptor based on the virtual job profile.
+	 * 
+	 * <li>mapred.job.reduce.input.buffer.percent</li> <li>mapred.reduce.tasks</li>
+	 * 
+	 * @param paramDescr
+	 *            the current parameter descriptor
+	 * @param jobProfile
+	 *            the job profile
+	 * @param taskMemory
+	 *            the task memory (in bytes)
+	 */
+	public static void adjustParamDescrRedInBufferPerc(
+			DoubleParamDescriptor paramDescr, MRJobProfile jobProfile,
+			long taskMemory) {
+
+		// Find the memory required by the reduce tasks
+		long redMemory = WhatIfUtils.getReduceMemoryRequired(jobProfile
+				.getAvgReduceProfile());
+
+		// Calculate the percent of memory to be used to buffer input
+		double percent = (taskMemory - redMemory) / (double) taskMemory;
+		if (percent < 0.0)
+			percent = 0;
+		else if (percent > 0.8)
+			percent = 0.8;
+
+		paramDescr.setMaxValue(percent);
+	}
+
+	/**
+	 * Adjusts the domain of the <tt>mapred.reduce.tasks</tt> parameter
+	 * descriptor based on the virtual job profile.
+	 * 
+	 * @param paramDescr
+	 *            the current parameter descriptor
+	 * @param jobProfile
+	 *            the job profile
+	 * @param taskMemory
+	 *            the task memory (in bytes)
+	 * @param numRedSlots
+	 *            the total number of reduce slots in the cluster
+	 */
+	public static void adjustParamDescrRedTasks(
+			IntegerParamDescriptor paramDescr, MRJobProfile jobProfile,
+			long taskMemory, int numRedSlots) {
+
+		// Get the reduce profile
+		MRReduceProfile redProfile = jobProfile.getAvgReduceProfile();
+		if (redProfile == null)
+			return;
+
+		// Calculate the (uncompressed) reduce input size
+		double shuffleSize = redProfile.getNumTasks()
+				* redProfile.getCounter(MRCounter.REDUCE_SHUFFLE_BYTES)
+				/ redProfile.getStatistic(MRStatistics.INTERM_COMPRESS_RATIO,
+						1d);
+
+		// Calculate the number of reduce groups
+		long numGroups = redProfile.getNumTasks()
+				* redProfile.getCounter(MRCounter.REDUCE_INPUT_GROUPS, 1l);
+
+		// Calculate the min and max number of reducers
+		double min = Math.ceil(shuffleSize / (2 * taskMemory));
+		double max = Math.ceil(4 * shuffleSize / taskMemory);
+		max = Math.min(max, numGroups);
+		max = Math.max(max, numRedSlots);
+		if (max < min)
+			max = min;
+
+		// Set the min and max number of reducers
+		paramDescr.setMinMaxValue((int) min, (int) max);
 	}
 
 	/**
@@ -160,12 +215,12 @@ public class ParamSpaceUtils {
 	 *            the parameter to exclude
 	 */
 	public static void addExludedParameter(Configuration conf, String param) {
-		String exclude = conf.get(EXCLUDE_PARAMS);
+		String exclude = conf.get(JobOptimizer.JOB_OPT_EXCLUDE_PARAMS);
 		if (exclude == null || exclude.equals(""))
 			exclude = param;
 		else
 			exclude += "," + param;
-		conf.set(EXCLUDE_PARAMS, exclude);
+		conf.set(JobOptimizer.JOB_OPT_EXCLUDE_PARAMS, exclude);
 	}
 
 	/**
@@ -179,7 +234,7 @@ public class ParamSpaceUtils {
 		String exclude = "io.sort.mb,io.sort.spill.percent,"
 				+ "io.sort.record.percent,min.num.spills.for.combine";
 
-		conf.set(EXCLUDE_PARAMS, exclude);
+		conf.set(JobOptimizer.JOB_OPT_EXCLUDE_PARAMS, exclude);
 	}
 
 	/**
@@ -198,7 +253,7 @@ public class ParamSpaceUtils {
 				+ "mapred.reduce.slowstart.completed.maps,"
 				+ "mapred.output.compress";
 
-		conf.set(EXCLUDE_PARAMS, exclude);
+		conf.set(JobOptimizer.JOB_OPT_EXCLUDE_PARAMS, exclude);
 	}
 
 	/**
@@ -387,10 +442,8 @@ public class ParamSpaceUtils {
 					HadoopParameter.RED_IN_BUFF_PERC,
 					ParamTaskEffect.EFFECT_REDUCE, 0, 0.8));
 		if (!exclude.contains(HadoopParameter.COMPRESS_OUT.toString()))
-			space
-					.addParameterDescriptor(new BooleanParamDescriptor(
-							HadoopParameter.COMPRESS_OUT,
-							ParamTaskEffect.EFFECT_REDUCE));
+			space.addParameterDescriptor(new BooleanParamDescriptor(
+					HadoopParameter.COMPRESS_OUT, ParamTaskEffect.EFFECT_REDUCE));
 	}
 
 	/**
@@ -458,7 +511,8 @@ public class ParamSpaceUtils {
 	private static Set<String> buildParamExclusionSet(Configuration conf) {
 		Set<String> excludeSet = new HashSet<String>();
 
-		String[] excludeArray = conf.getStrings(EXCLUDE_PARAMS);
+		String[] excludeArray = conf
+				.getStrings(JobOptimizer.JOB_OPT_EXCLUDE_PARAMS);
 		if (excludeArray != null) {
 			for (String param : excludeArray) {
 				excludeSet.add(param);

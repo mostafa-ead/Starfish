@@ -25,7 +25,7 @@ BIN_DIR=`cd "$BIN_DIR"; pwd`
 BASE_DIR=`cd "$BIN_DIR/../"; pwd`
 cd $CURRENT_DIR;
 
-MASTER_BTRACE_DIR=$BASE_DIR/hadoop-btrace
+MASTER_BTRACE_DIR=$BASE_DIR/btrace
 
 # Get the user-defined parameters
 . "$BIN_DIR"/config.sh
@@ -37,7 +37,7 @@ if [ "$SLAVES_BTRACE_DIR" = "" ]; then
   echo "       and run $BIN_DIR/install-btrace.sh"
   exit -1
 fi
-HADOOP_OPTS="${HADOOP_OPTS} -Dbtrace.profile.dir=${SLAVES_BTRACE_DIR}"
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.profiler.btrace.dir=${SLAVES_BTRACE_DIR}"
 
 # Ensure the user has set the cluster name
 if [ "$CLUSTER_NAME" = "" ]; then
@@ -46,4 +46,10 @@ if [ "$CLUSTER_NAME" = "" ]; then
   exit -1
 fi
 HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.profiler.cluster.name=${CLUSTER_NAME}"
+
+# Default output directory is the working directory
+if [ "$PROFILER_OUTPUT_DIR" = "" ]; then
+  PROFILER_OUTPUT_DIR=$CURRENT_DIR
+fi
+HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.profiler.output.dir=${PROFILER_OUTPUT_DIR}"
 

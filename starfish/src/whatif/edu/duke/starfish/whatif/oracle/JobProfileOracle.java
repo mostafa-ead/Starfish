@@ -1,18 +1,17 @@
 package edu.duke.starfish.whatif.oracle;
 
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_INPUT_DIR;
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_RED_TASKS;
+import static edu.duke.starfish.profile.utils.Constants.MR_RED_TASKS;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.util.StringUtils;
 
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRMapProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRReduceProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCounter;
+import edu.duke.starfish.profile.utils.ProfileUtils;
 import edu.duke.starfish.whatif.data.DataSetModel;
 import edu.duke.starfish.whatif.data.MapInputSpecs;
 import edu.duke.starfish.whatif.data.ReduceShuffleSpecs;
@@ -101,7 +100,7 @@ public class JobProfileOracle {
 
 		// Set the cluster name and job inputs
 		virtualProf.setClusterName(sourceProf.getClusterName());
-		virtualProf.setJobInputs(StringUtils.split(conf.get(MR_INPUT_DIR, "")));
+		virtualProf.setJobInputs(ProfileUtils.getInputDirs(conf));
 
 		// Get the input specs
 		List<MapInputSpecs> inputSpecs = dataModel
@@ -121,8 +120,8 @@ public class JobProfileOracle {
 		if (numReducers > 0 && !ignoreReducers) {
 			// Get the shuffle specs
 			List<ReduceShuffleSpecs> shuffleSpecs = dataModel
-					.generateReduceShuffleSpecs(conf, virtualProf
-							.getMapProfiles());
+					.generateReduceShuffleSpecs(conf,
+							virtualProf.getMapProfiles());
 
 			for (ReduceShuffleSpecs shuffleSpec : shuffleSpecs) {
 				MRReduceProfile redProf = redOracle.whatif(conf, shuffleSpec);

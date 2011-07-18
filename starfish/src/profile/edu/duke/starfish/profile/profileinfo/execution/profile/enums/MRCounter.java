@@ -14,6 +14,7 @@ public enum MRCounter {
 	MAP_INPUT_BYTES, // Map input bytes
 	MAP_OUTPUT_RECORDS, // Map output records
 	MAP_OUTPUT_BYTES, // Map output bytes
+    MAP_OUTPUT_MATERIALIZED_BYTES, // Map output materialized bytes
 	MAP_SKIPPED_RECORDS, // Map skipped records
 	MAP_NUM_SPILLS, // Number of spills
 	MAP_NUM_SPILL_MERGES, // Number of merge rounds
@@ -39,6 +40,7 @@ public enum MRCounter {
 
 	FILE_BYTES_READ, // Bytes read from local file system
 	FILE_BYTES_WRITTEN, // Bytes written to local file system
+	SPLIT_RAW_BYTES, // Split metadata bytes read from HDFS
 	HDFS_BYTES_READ, // Bytes read from HDFS
 	HDFS_BYTES_WRITTEN; // Bytes written to HDFS
 
@@ -61,6 +63,8 @@ public enum MRCounter {
 			return "Map output records";
 		case MAP_OUTPUT_BYTES:
 			return "Map output bytes";
+		case MAP_OUTPUT_MATERIALIZED_BYTES:
+			return "Map output materialized bytes";
 		case MAP_SKIPPED_RECORDS:
 			return "Map skipped records";
 		case MAP_NUM_SPILLS:
@@ -106,6 +110,8 @@ public enum MRCounter {
 			return "Bytes read from local file system";
 		case FILE_BYTES_WRITTEN:
 			return "Bytes written to local file system";
+		case SPLIT_RAW_BYTES:
+			return "Split metadata bytes read from HDFS";
 		case HDFS_BYTES_READ:
 			return "Bytes read from HDFS";
 		case HDFS_BYTES_WRITTEN:

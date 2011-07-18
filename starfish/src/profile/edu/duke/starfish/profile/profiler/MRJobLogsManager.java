@@ -10,6 +10,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.hadoop.conf.Configuration;
@@ -48,7 +49,6 @@ public class MRJobLogsManager implements IMRInfoManager {
 
 	// DATA MEMBERS
 	private String historyDir; // The directory with the history files
-	private String userlogsDir; // The directory with the user logs
 	private String jobProfilesDir; // The directory with the XML job profiles
 	private String taskProfilesDir; // The directory with the task profiles
 	private String transfersDir; // The directory with the transfers
@@ -59,11 +59,9 @@ public class MRJobLogsManager implements IMRInfoManager {
 	private Map<String, MRJobTransfersLoader> jobTransfers; // The job transfers
 
 	// CONSTANTS
-	private static final String U_JOB_U = "_job_";
 	private static final String DOT_XML = ".xml";
-	private static final String USCORE = "_";
 	private static final Pattern NAME_PATTERN = Pattern
-			.compile(".*_job_[0-9]+_[0-9]+_.*");
+			.compile(".*(job_[0-9]+_[0-9]+)_.*");
 
 	/**
 	 * Default Constructor
@@ -71,7 +69,6 @@ public class MRJobLogsManager implements IMRInfoManager {
 	public MRJobLogsManager() {
 
 		this.historyDir = null;
-		this.userlogsDir = null;
 		this.jobProfilesDir = null;
 		this.taskProfilesDir = null;
 		this.transfersDir = null;
@@ -87,24 +84,46 @@ public class MRJobLogsManager implements IMRInfoManager {
 	 */
 
 	/**
+	 * The results directory is generated during profiling and could contain the
+	 * sub-directories: history, job_profiles, task_profiles, and transfers.
+	 * 
+	 * @param resultsDir
+	 *            the results directory to set
+	 */
+	public void setResultsDir(String resultsDir) {
+
+		// Check for a valid directory
+		File dir = new File(resultsDir);
+		if (!dir.isDirectory()) {
+			System.err.println(dir.getAbsolutePath() + " is not a directory!");
+			return;
+		}
+
+		// Set any existing sub-directories
+		File history = new File(resultsDir, "history");
+		if (history.exists())
+			setHistoryDir(history.getAbsolutePath());
+
+		File job_profiles = new File(resultsDir, "job_profiles");
+		if (job_profiles.exists())
+			setJobProfilesDir(job_profiles.getAbsolutePath());
+
+		File task_profiles = new File(resultsDir, "task_profiles");
+		if (task_profiles.exists())
+			setTaskProfilesDir(task_profiles.getAbsolutePath());
+
+		File transfers = new File(resultsDir, "transfers");
+		if (transfers.exists())
+			setTransfersDir(transfers.getAbsolutePath());
+	}
+
+	/**
 	 * @param historyDir
 	 *            the historyDir to set
 	 */
 	public void setHistoryDir(String historyDir) {
 		this.historyDir = historyDir;
 		readHistoryDirectory();
-	}
-
-	/**
-	 * @param userlogsDir
-	 *            the userlogsDir to set
-	 */
-	public void setUserlogsDir(String userlogsDir) {
-		this.userlogsDir = userlogsDir;
-		if (taskProfilesDir == null)
-			setTaskProfilesDir(this.userlogsDir);
-		if (transfersDir == null)
-			setTransfersDir(this.userlogsDir);
 	}
 
 	/**
@@ -328,8 +347,9 @@ public class MRJobLogsManager implements IMRInfoManager {
 				if (jobId1 != null && jobId2 != null
 						&& jobId1.equalsIgnoreCase(jobId2)) {
 					// Matchings job Ids => found a valid pair of files
-					jobHistories.put(jobId1, new MRJobHistoryLoader(confFile
-							.getAbsolutePath(), statFile.getAbsolutePath()));
+					jobHistories.put(jobId1,
+							new MRJobHistoryLoader(confFile.getAbsolutePath(),
+									statFile.getAbsolutePath()));
 					confFile = null;
 					statFile = null;
 				}
@@ -340,7 +360,12 @@ public class MRJobLogsManager implements IMRInfoManager {
 	/**
 	 * Given a filename, build the job id. Expected format for filename:
 	 * 
-	 * "<hostName>_<hostStartTime>_job_<jobTrackerStartTime>_<id>_[conf.xml|<user>_<name>]"
+	 * Hadoop 0.20.2:
+	 * "{hostName}_{hostStartTime}_job_{jobTrackerStartTime}_{id}_[conf.xml|{user}_{name}]"
+	 * 
+	 * Hadoop 0.20.203.0:
+	 * "job_{jobTrackerStartTime}_{id}_conf.xml"
+	 * "job_{jobTrackerStartTime}_{id}_{hostStartTime}_{user}_{name}]"
 	 * 
 	 * The constructed job id has the format: "job_<jobTrackerStartTime>_<id>"
 	 * 
@@ -349,17 +374,13 @@ public class MRJobLogsManager implements IMRInfoManager {
 	 * @return the job id
 	 */
 	private String buildJobId(String fileName) {
-		String jobId = null;
-		int index = fileName.indexOf(U_JOB_U);
 
-		if (index != -1) {
-			// Split on "_" and merge the necessary pieces
-			String[] pieces = fileName.substring(index).split(USCORE);
-			if (pieces.length > 3) {
-				jobId = pieces[1] + USCORE + pieces[2] + USCORE + pieces[3];
-			}
+		Matcher matcher = NAME_PATTERN.matcher(fileName);
+		if (matcher.find()) {
+			return matcher.group(1);
+		} else {
+			return null;
 		}
-		return jobId;
 	}
 
 }

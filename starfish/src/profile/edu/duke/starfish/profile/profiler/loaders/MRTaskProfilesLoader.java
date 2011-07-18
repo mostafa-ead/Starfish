@@ -13,9 +13,9 @@ import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRMapProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRReduceProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCounter;
-import edu.duke.starfish.profile.profileinfo.utils.Constants;
 import edu.duke.starfish.profile.profiler.loaders.tasks.MRMapProfileLoader;
 import edu.duke.starfish.profile.profiler.loaders.tasks.MRReduceProfileLoader;
+import edu.duke.starfish.profile.utils.ProfileUtils;
 
 /**
  * This class is responsible for parsing the BTrace profile files for all the
@@ -132,13 +132,12 @@ public class MRTaskProfilesLoader {
 		for (MRReduceAttemptInfo mrReduce : mrJob
 				.getReduceAttempts(MRExecutionStatus.SUCCESS)) {
 			success = loadTaskExecutionProfile(profile, filesDir, mrReduce,
-					false)
-					|| success;
+					false) || success;
 		}
 
 		if (success) {
 			// Update the job profile
-			profile.setJobInputs(conf.getStrings(Constants.MR_INPUT_DIR, "NOT_FILE_SPLIT"));
+			profile.setJobInputs(ProfileUtils.getInputDirs(conf));
 			profile.updateProfile();
 
 			// Set the number of map and reduce tasks

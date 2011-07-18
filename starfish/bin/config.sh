@@ -22,15 +22,14 @@ SLAVES_BTRACE_DIR=
 # No spaces or special characters in the name. This setting is required!
 CLUSTER_NAME=
 
+# The local directory to place the output files
+# If left blank, it defaults to the working directory (not recommended)
+PROFILER_OUTPUT_DIR=
+
 
 ###################################################################
 # PROFILING PARAMETERS
 ###################################################################
-
-# The local directory to place the output files
-# This setting is optional, it defaults to the working directory
-# Overwritten by the Hadoop parameter starfish.profiler.output.dir
-PROFILER_OUTPUT_DIR=results
 
 # Whether to retain the task profiles or not. Default is true
 # Overwritten by the Hadoop parameter starfish.profiler.retain.task.profiles
@@ -81,14 +80,4 @@ JOB_OPTIMIZER_TYPE=smart_rrs
 # The options are: basic, advanced (advanced is default)
 # Overwritten by the Hadoop parameter starfish.whatif.task.scheduler
 TASK_SCHEDULER=advanced
-
-# The number of values to consider per parameter
-# NOTE: This option is only used by optimizers: full, smart_full
-# Overwritten by the Hadoop parameter starfish.job.optimizer.num.values.per.param
-JOB_OPTIMIZER_NUM_VALUES_PER_PARAM=2
-
-# Whether the optimizer to use random or equi-distance values per parameter
-# NOTE: This option is only used by optimizers: full, smart_full
-# Overwritten by the Hadoop parameter starfish.job.optimizer.use.random.values
-JOB_OPTIMIZER_USE_RANDOM_VALUES=false
 

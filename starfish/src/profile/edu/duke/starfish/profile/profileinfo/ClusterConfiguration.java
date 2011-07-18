@@ -19,8 +19,8 @@ import edu.duke.starfish.profile.profileinfo.setup.MasterHostInfo;
 import edu.duke.starfish.profile.profileinfo.setup.RackInfo;
 import edu.duke.starfish.profile.profileinfo.setup.SlaveHostInfo;
 import edu.duke.starfish.profile.profileinfo.setup.TaskTrackerInfo;
-import edu.duke.starfish.profile.profileinfo.utils.ProfileUtils;
 import edu.duke.starfish.profile.profiler.Profiler;
+import edu.duke.starfish.profile.utils.ProfileUtils;
 
 /**
  * Represents the entire cluster configuration i.e. the racks, the hosts, the
@@ -87,8 +87,8 @@ public class ClusterConfiguration {
 		RackInfo masterRack = new RackInfo(0, MASTER_RACK);
 		racks.put(masterRack.getName(), masterRack);
 		masterHost = new MasterHostInfo(0, jobTrackerAddr.getHostName(),
-				jobTrackerAddr.getAddress().getHostAddress(), masterRack
-						.getName());
+				jobTrackerAddr.getAddress().getHostAddress(),
+				masterRack.getName());
 		jobTracker = new JobTrackerInfo(0, JOB_TRACKER + masterHost.getName(),
 				masterHost.getName(), jobTrackerAddr.getPort());
 		masterRack.setMasterHost(masterHost);
@@ -304,7 +304,7 @@ public class ClusterConfiguration {
 		rack.setMasterHost(host);
 
 		// Cache the master host and job tracker
-		masterHost = (MasterHostInfo) host;
+		masterHost = host;
 		if (masterHost.getJobTracker() != null)
 			jobTracker = masterHost.getJobTracker();
 	}
@@ -707,6 +707,39 @@ public class ClusterConfiguration {
 	 */
 	public void setClusterName(String name) {
 		this.name = name;
+	}
+
+	/**
+	 * Merge the input cluster to the current cluster. This method will will
+	 * make a deep copy of all elements (rack, hosts, etc) of the input cluster
+	 * that are not present in the current cluster
+	 * 
+	 * @param other
+	 *            the other cluster to merge to this cluster
+	 */
+	public void mergeCluster(ClusterConfiguration other) {
+
+		// Set the cluster name if it doesn't already exist
+		if (this.name == null)
+			setClusterName(other.getClusterName());
+
+		// Make a deep copy of everything that currently doesn't exist
+		for (RackInfo rack : other.getAllRackInfos()) {
+
+			if (this.racks.containsKey(rack.getName())) {
+				// Existing rack - check for new master and slave hosts
+				if (this.masterHost == null && rack.getMasterHost() != null)
+					addMasterHostInfo(new MasterHostInfo(rack.getMasterHost()));
+
+				for (SlaveHostInfo slave : rack.getSlaveHosts()) {
+					if (!this.slaveHosts.containsKey(slave.getName()))
+						addSlaveHostInfo(new SlaveHostInfo(slave));
+				}
+			} else {
+				// Add the entire rack
+				addRackInfo(new RackInfo(rack));
+			}
+		}
 	}
 
 	/**

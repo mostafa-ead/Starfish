@@ -41,9 +41,9 @@ import edu.duke.starfish.profile.profileinfo.IMRInfoManager;
 import edu.duke.starfish.profile.profileinfo.execution.DataLocality;
 import edu.duke.starfish.profile.profileinfo.execution.jobs.MRJobInfo;
 import edu.duke.starfish.profile.profileinfo.ClusterConfiguration;
-import edu.duke.starfish.profile.profileinfo.utils.Constants.*;
-import edu.duke.starfish.profile.profileinfo.utils.ProfileUtils;
-import edu.duke.starfish.profile.profileinfo.utils.XMLClusterParser;
+import edu.duke.starfish.profile.utils.Constants.*;
+import edu.duke.starfish.profile.utils.ProfileUtils;
+import edu.duke.starfish.profile.utils.XMLClusterParser;
 import edu.duke.starfish.whatif.data.XMLInputSpecsParser;
 import edu.duke.starfish.whatif.data.MapInputSpecs;
 import edu.duke.starfish.whatif.WhatIfUtils;
@@ -85,7 +85,7 @@ public class ConfigTable extends SwingComponent {
  	
  	// if data grid changes, it will trigger the listener and call tableChanged()
  	var configValues: Object[] on replace{
- 	 		table.setModel(new ConfigTableModel(configKeys, configValues, readOnly));
+ 	 		table.setModel(new ConfigTableModel(configKeys, configValues, readOnly, job.isMapOnly()));
  	 		fixColumnWidth(0, 300);
  	 		centerColumn(1);
  	 		
@@ -105,7 +105,7 @@ public class ConfigTable extends SwingComponent {
  		// model = table.getModel() as javax.swing.table.DefaultTableModel;
  		table = new JTable();
  		table.setAutoResizeMode(JTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS);
- 		table.setModel(new ConfigTableModel(configKeys, configValues, readOnly));
+ 		table.setModel(new ConfigTableModel(configKeys, configValues, readOnly, job.isMapOnly()));
  		 		
  		// get select row
  		table.getSelectionModel().addListSelectionListener(javax.swing.event.ListSelectionListener {

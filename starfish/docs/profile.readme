@@ -14,8 +14,10 @@ In order to profile the execution of a Map-Reduce job in a cluster
 you must first install the BTrace jars and classes.
 
 1. Set the global profiling parameters in bin/config.sh
-   The most important parameter is SLAVES_BTRACE_DIR, which specifies
-   the BTrace installation directory at all slave nodes.
+   The required parameters are:
+   - SLAVES_BTRACE_DIR: The BTrace installation directory at the slave nodes
+   - CLUSTER_NAME: A descriptive name for the cluster
+   - PROFILER_OUTPUT_DIR: The local directory to place the output files
    
 2. Install BTrace using the provided bin/install_btrace.sh.
    
@@ -42,7 +44,7 @@ Method A (Recommended): Using the bin/profile script
 
 Method B: Using a Hadoop configuration file 
 1. Modify the samples/profile/btrace-conf.xml to update the
-   "btrace.profile.dir" property with the installation location.
+   "starfish.profiler.btrace.dir" property with the installation location.
    
    Note: You should not need to modify any other existing parameters from 
    btrace-conf.xml, but if you want to use any other job-specific parameters,
@@ -59,9 +61,9 @@ Method B: Using a Hadoop configuration file
    hadoop jar command.
 
    Usage:
-      ./gather_results.sh <job_id> <results_dir> [<slaves_file>]
+      ./gather_results.sh <job_id>
    Example:
-      ./gather_results.sh job_201001052153_0021 ./results
+      ./gather_results.sh job_201001052153_0021
 
 
 WARNING:
@@ -73,89 +75,6 @@ LIMITATIONS:
 Currently, we do not profile compression! If you plan to use the job profile
 to ask what-if questions regarding compression or to use the Job Optimizer,
 then you must profile the same job twice: once with no compression and once
-with compression. Then use the 'adjust' mode (see below) to create the
-job profile.
-
-
-Analyze Hadoop and Profile Logs
--------------------------------
-The starfish-profiler.jar provides a basic terminal UI for
-displaying information regarding past MR job executions.
-
-Usage:
- hadoop jar starfish-profiler.jar <parameters>
-
-The profiler parameters must be one of:
-  -mode list_all   -history <dir> [-ouput <file>]
-  -mode list_stats -history <dir> [-ouput <file>]
-
-  -mode details    -job <job_id> -history <dir> [-ouput <file>]
-  -mode cluster    -job <job_id> -history <dir> [-ouput <file>]
-  -mode timeline   -job <job_id> -history <dir> [-ouput <file>]
-  -mode mappers    -job <job_id> -history <dir> [-ouput <file>]
-  -mode reducers   -job <job_id> -history <dir> [-ouput <file>]
-
-  -mode transfers -job <job_id> -history <dir> -transfers <dir> [-ouput <file>]
-
-  -mode profile     -job <job_id> -history <dir> -profiles <dir> [-ouput <file>]
-  -mode profile_xml -job <job_id> -history <dir> -profiles <dir> [-ouput <file>]
-
-  -mode adjust   -profile1 <xml_file> -profile2 <xml_file> [-ouput <file>]
-
-
-  -mode cpustats  -monitor <dir> -node <node_name> 
-     [-job <job_id> -history <dir>] [-output <file>]
-  -mode memstats  -monitor <dir> -node <node_name> 
-     [-job <job_id> -history <dir>] [-output <file>]
-  -mode iostats   -monitor <dir> -node <node_name> 
-     [-job <job_id> -history <dir>] [-output <file>]
-
-Description of execution modes:
-  list_all     List all available jobs
-  list_stats   List stats for all available jobs
-  details      Display the details of a job
-  cluster      Display the cluster information
-  timeline     Generate timeline of tasks
-  mappers      Display mappers information of a job
-  reducers     Display reducers information of a job
-  transfers_all Display all data transfers of a job
-  transfers_map Display aggregated data transfers from maps
-  transfers_red Display aggregated data transfers to reducers
-  profile      Display the profile of a job
-  profile_xml  Display the profile of a job in XML format
-  adjust       Adjusts compression costs for two jobs
-  cpustats     Display CPU stats of a node
-  memstats     Display Memory stats of a node
-  iostats      Display I/O stats of a node
-
-Description of parameter flags:
-  -mode <option>    The execution mode
-  -job <job_id>     The job id of interest
-  -history <dir>    The directory with the history files
-  -profiles <dir>   The directory with the profile files (or userlogs)
-  -transfers <dir>  The directory with the transfer files (or userlogs)
-  -monitor <dir>    The directory with the monitoring files
-  -profile1 <file>  The xml profile file (obtained without compression)
-  -profile2 <file>  The xml profile file (obtained with compression)
-  -node <node_name> The node name of interest (for monitor info)
-  -output <file>    An optional file to write the output to
-  -help             Display detailed instructions
-
-
-Examples:
-   (In the following examples, suppose the local directories history, 
-   transfers, and task_profiles contain the corresponding files)
-
-   hadoop jar starfish-profiler.jar -mode list_all -history ./history
-
-   hadoop jar starfish-profiler.jar -mode details -job job_201008240839_0000 -history ./history
-
-   hadoop jar starfish-profiler.jar -mode transfers -job job_201008240839_0000 -history ./history -transfers ./transfers
-
-   hadoop jar starfish-profiler.jar -mode profile -job job_201008240839_0000 -history ./history -profiles ./task_profiles
-
-
-NOTES
------
-1. You can use the Starfish Visualizer to analyze the MapReduce job execution.
+with compression. Then use the 'adjust' mode in the starfish-*-profiler.jar
+to create the job profile.
 

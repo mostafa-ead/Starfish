@@ -9,9 +9,11 @@ import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCostFacto
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCounter;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRStatistics;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRTaskPhase;
-import edu.duke.starfish.profile.profileinfo.utils.ProfileUtils;
+import edu.duke.starfish.profile.utils.Constants;
+import edu.duke.starfish.profile.utils.GeneralUtils;
+import edu.duke.starfish.profile.utils.ProfileUtils;
 
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.*;
+import static edu.duke.starfish.profile.utils.Constants.*;
 
 /**
  * This class represents the profile for a single map attempt. It contains all
@@ -145,8 +147,7 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 					|| inputFormat.equals(MR_WFIF)) {
 				// Equals value size + newlines
 				mapInputBytes = mapRecords.get(POS_MAP_INPUT_V_BYTE_COUNT)
-						.getValue()
-						+ mapInputPairs;
+						.getValue() + mapInputPairs;
 			} else if (inputFormat.equals(MR_SFIF)
 					|| inputFormat.equals(MR_TSIF)
 					|| inputFormat.equals(MR_KVTIF)
@@ -165,10 +166,14 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 				// Might not need this...
 				profile.addCounter(MRCounter.HDFS_BYTES_READ, mapInputBytes);
 
+			} else if (inputFormat.equals(PIG_PIF)) {
+				// Equals value size
+				mapInputBytes = mapRecords.get(POS_MAP_INPUT_V_BYTE_COUNT)
+						.getValue();
 			} else {
 				// Equals HDFS input (without compression)
-				mapInputBytes = (mapRecords.get(POS_MAP_UNCOMPRESS).getValue() == 0) ? hdfsBytesRead
-						: (long) (hdfsBytesRead / DEFAULT_COMPR_RATIO);
+				mapInputBytes = isInputCompressed() ? (long) (hdfsBytesRead / DEFAULT_COMPR_RATIO)
+						: hdfsBytesRead;
 			}
 
 			profile.addCounter(MRCounter.MAP_INPUT_BYTES, mapInputBytes);
@@ -194,9 +199,7 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 								.getValue();
 
 				// Might not need this...
-				profile
-						.addCounter(MRCounter.HDFS_BYTES_WRITTEN,
-								mapOutputBytes);
+				profile.addCounter(MRCounter.HDFS_BYTES_WRITTEN, mapOutputBytes);
 
 			} else {
 				// Equals HDFS output (without compression)
@@ -222,10 +225,11 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 		// Calculate and set the map CPU cost
 		if (mapInputPairs != 0) {
 			// Cost = pure map time / number of input records
-			profile.addCostFactor(MRCostFactors.MAP_CPU_COST, (mapRecords.get(
-					POS_MAP_MAP).getValue() - mapRecords.get(POS_MAP_WRITE)
-					.getValue())
-					/ (double) mapInputPairs);
+			profile.addCostFactor(
+					MRCostFactors.MAP_CPU_COST,
+					(mapRecords.get(POS_MAP_MAP).getValue() - mapRecords.get(
+							POS_MAP_WRITE).getValue())
+							/ (double) mapInputPairs);
 		}
 
 		// Calculate and cost HDFS read I/O Costs
@@ -244,8 +248,8 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 		}
 
 		// Calculate and set the input compression ratio and cost
-		// if (mapRecords.get(POS_MAP_UNCOMPRESS).getValue() != 0) {
-		if (mapInputBytes > hdfsBytesRead) {
+		if (isInputCompressed()
+				|| (hdfsBytesRead != 0 && mapInputBytes > 1.1 * hdfsBytesRead)) {
 			if (mapInputBytes != 0) {
 				profile.addStatistic(MRStatistics.INPUT_COMPRESS_RATIO,
 						hdfsBytesRead / (double) mapInputBytes);
@@ -264,19 +268,17 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 			// Map-only task
 
 			// Calculate and set the output compression ratio and cost
-			if (conf.getBoolean(MR_COMPRESS_OUT, false) == true) {
+			if (ProfileUtils.isMROutputCompressionOn(conf)) {
 				if (mapOutputBytes != 0) {
 					profile.addStatistic(MRStatistics.OUT_COMPRESS_RATIO,
 							hdfsBytesWritten / (double) mapOutputBytes);
 
 					// Cost = time to compress / uncompressed size
-					profile
-							.addCostFactor(
-									MRCostFactors.OUTPUT_COMPRESS_CPU_COST,
-									(mapRecords.get(POS_MAP_COMPRESS)
-											.getValue() + mapRecords.get(
-											POS_MAP_DIR_COMPRESS).getValue())
-											/ (double) mapOutputBytes);
+					profile.addCostFactor(
+							MRCostFactors.OUTPUT_COMPRESS_CPU_COST,
+							(mapRecords.get(POS_MAP_COMPRESS).getValue() + mapRecords
+									.get(POS_MAP_DIR_COMPRESS).getValue())
+									/ (double) mapOutputBytes);
 				}
 			}
 
@@ -299,7 +301,8 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 		} else {
 
 			// Calculate and set the local I/O cost
-			profile.addCostFactor(MRCostFactors.WRITE_LOCAL_IO_COST,
+			profile.addCostFactor(
+					MRCostFactors.WRITE_LOCAL_IO_COST,
 					averageProfileValueDiffRatios(spillRecords,
 							NUM_SPILL_PHASES, POS_SPILL_WRITE,
 							POS_SPILL_COMPRESS, POS_SPILL_COMPRESS_BYTE_COUNT));
@@ -314,7 +317,8 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 
 				// Calculate and set the selectivities
 				if (mapOutputBytes != 0) {
-					profile.addStatistic(MRStatistics.COMBINE_SIZE_SEL,
+					profile.addStatistic(
+							MRStatistics.COMBINE_SIZE_SEL,
 							aggregateRecordValues(spillRecords,
 									NUM_SPILL_PHASES,
 									POS_SPILL_UNCOMPRESS_BYTE_COUNT)
@@ -327,7 +331,8 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 				}
 
 				// Calculate and set the CPU cost for the combiner
-				profile.addCostFactor(MRCostFactors.COMBINE_CPU_COST,
+				profile.addCostFactor(
+						MRCostFactors.COMBINE_CPU_COST,
 						averageProfileValueDiffRatios(spillRecords,
 								NUM_SPILL_PHASES, POS_SPILL_COMBINE,
 								POS_SPILL_WRITE, POS_SPILL_SORT_COUNT));
@@ -350,7 +355,8 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 			}
 
 			// Calculate and set the sort CPU cost (cost per comparison)
-			profile.addCostFactor(MRCostFactors.SORT_CPU_COST,
+			profile.addCostFactor(
+					MRCostFactors.SORT_CPU_COST,
 					averageSortCostInSpills(spillRecords, POS_SPILL_QUICK_SORT,
 							POS_SPILL_SORT_COUNT, numReducers));
 
@@ -365,24 +371,25 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 
 			// Calculate the merge CPU cost
 			if (numMergedPairs > 0) {
-				profile
-						.addCostFactor(MRCostFactors.MERGE_CPU_COST,
-								(mergeRecords.get(POS_MERGE_TOTAL_MERGE)
-										.getValue() - mergeRecords.get(
-										POS_MERGE_READ_WRITE).getValue())
-										/ (double) numMergedPairs);
+				profile.addCostFactor(
+						MRCostFactors.MERGE_CPU_COST,
+						(mergeRecords.get(POS_MERGE_TOTAL_MERGE).getValue() - mergeRecords
+								.get(POS_MERGE_READ_WRITE).getValue())
+								/ (double) numMergedPairs);
 			}
 
 			// Calculate and set the intermediate compression ratio and cost
 			if (conf.getBoolean(MR_COMPRESS_MAP_OUT, false) == true) {
-				profile.addStatistic(MRStatistics.INTERM_COMPRESS_RATIO,
+				profile.addStatistic(
+						MRStatistics.INTERM_COMPRESS_RATIO,
 						averageRecordValueRatios(spillRecords,
 								NUM_SPILL_PHASES,
 								POS_SPILL_COMPRESS_BYTE_COUNT,
 								POS_SPILL_UNCOMPRESS_BYTE_COUNT));
 
 				// Compress cost = time to compress / uncompressed size
-				profile.addCostFactor(MRCostFactors.INTERM_COMPRESS_CPU_COST,
+				profile.addCostFactor(
+						MRCostFactors.INTERM_COMPRESS_CPU_COST,
 						averageRecordValueRatios(spillRecords,
 								NUM_SPILL_PHASES, POS_SPILL_COMPRESS,
 								POS_SPILL_UNCOMPRESS_BYTE_COUNT));
@@ -405,12 +412,13 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 			profile.addCounter(MRCounter.MAP_NUM_SPILLS, spillRecords.size()
 					/ (long) NUM_SPILL_PHASES);
 			profile.addCounter(MRCounter.MAP_NUM_SPILL_MERGES, mergeRecords
-					.get(POS_MERGE_READ_WRITE_COUNT).getValue()
-					/ numReducers);
-			profile.addCounter(MRCounter.MAP_RECS_PER_BUFF_SPILL,
+					.get(POS_MERGE_READ_WRITE_COUNT).getValue() / numReducers);
+			profile.addCounter(
+					MRCounter.MAP_RECS_PER_BUFF_SPILL,
 					(long) averageRecordValues(spillRecords, NUM_SPILL_PHASES,
 							POS_SPILL_SORT_COUNT));
-			profile.addCounter(MRCounter.MAP_SPILL_SIZE,
+			profile.addCounter(
+					MRCounter.MAP_SPILL_SIZE,
 					(long) averageRecordValues(spillRecords, NUM_SPILL_PHASES,
 							POS_SPILL_COMPRESS_BYTE_COUNT));
 		}
@@ -447,10 +455,10 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 					(double) map_mem);
 
 		// Set the input file path
-		String[] jobInputs = conf.getStrings(MR_INPUT_DIR);
+		String[] jobInputs = ProfileUtils.getInputDirs(conf);
 		String mapInput = mapRecords.get(POS_MAP_INPUT).getProcess();
-		((MRMapProfile) profile).setInputIndex(getMapInputPosition(jobInputs,
-				mapInput));
+		int index = GeneralUtils.getIndexInPathArray(jobInputs, mapInput);
+		((MRMapProfile) profile).setInputIndex(index == -1 ? 0 : index);
 	}
 
 	/**
@@ -460,20 +468,17 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 
 		// Calculate the timings
 		profile.addTiming(MRTaskPhase.SETUP, mapRecords.get(POS_MAP_SETUP)
-				.getValue()
-				/ NS_PER_MS);
+				.getValue() / NS_PER_MS);
 
 		profile.addTiming(MRTaskPhase.READ, mapRecords.get(POS_MAP_READ)
-				.getValue()
-				/ NS_PER_MS);
+				.getValue() / NS_PER_MS);
 
 		profile.addTiming(MRTaskPhase.MAP, (mapRecords.get(POS_MAP_MAP)
 				.getValue() - mapRecords.get(POS_MAP_WRITE).getValue())
 				/ NS_PER_MS);
 
 		profile.addTiming(MRTaskPhase.CLEANUP, mapRecords.get(POS_MAP_CLEANUP)
-				.getValue()
-				/ NS_PER_MS);
+				.getValue() / NS_PER_MS);
 
 		int numReducers = conf.getInt(MR_RED_TASKS, 1);
 		if (numReducers == 0) {
@@ -481,21 +486,22 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 					.getValue() + mapRecords.get(POS_MAP_DIR_WRITE).getValue())
 					/ NS_PER_MS);
 		} else {
-			profile.addTiming(MRTaskPhase.COLLECT, (mapRecords.get(
-					POS_MAP_PARTITION_OUTPUT).getValue() + mapRecords.get(
-					POS_MAP_SERIALIZE_OUTPUT).getValue())
-					/ NS_PER_MS);
+			profile.addTiming(
+					MRTaskPhase.COLLECT,
+					(mapRecords.get(POS_MAP_PARTITION_OUTPUT).getValue() + mapRecords
+							.get(POS_MAP_SERIALIZE_OUTPUT).getValue())
+							/ NS_PER_MS);
 
 			if (spillRecords != EMPTY_RECORDS)
-				profile.addTiming(MRTaskPhase.SPILL, aggregateRecordValues(
-						spillRecords, NUM_SPILL_PHASES,
-						POS_SPILL_SORT_AND_SPILL)
-						/ NS_PER_MS);
+				profile.addTiming(
+						MRTaskPhase.SPILL,
+						aggregateRecordValues(spillRecords, NUM_SPILL_PHASES,
+								POS_SPILL_SORT_AND_SPILL) / NS_PER_MS);
 
 			if (mergeRecords != EMPTY_RECORDS)
-				profile.addTiming(MRTaskPhase.MERGE, mergeRecords.get(
-						POS_MERGE_TOTAL_MERGE).getValue()
-						/ NS_PER_MS);
+				profile.addTiming(MRTaskPhase.MERGE,
+						mergeRecords.get(POS_MERGE_TOTAL_MERGE).getValue()
+								/ NS_PER_MS);
 		}
 	}
 
@@ -559,54 +565,23 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 	}
 
 	/**
-	 * Get the position of a map input with respect to the job inputs. The idea
-	 * is figure out the job input that was used that lead to this particular
-	 * map input.
+	 * Tries to determine whether the input is compressed or not. Not guaranteed
+	 * to identify input compression.
 	 * 
-	 * Example: A map input "/usr/root/joins/orders/orders.tbl.1" can belong to
-	 * a job input "/usr/root/joins/orders" or "/usr/root/joins/orders/orders.*"
-	 * or "/usr/root/joins/orders/orders.tbl.[1-2]
-	 * 
-	 * @param jobInputs
-	 *            the job inputs
-	 * @param mapInput
-	 *            the map input
-	 * @return the job input position
+	 * @return true if input is compressed
 	 */
-	private int getMapInputPosition(String[] jobInputs, String mapInput) {
+	private boolean isInputCompressed() {
+		if (mapRecords.get(POS_MAP_UNCOMPRESS).getValue() != 0)
+			return true;
 
-		if (mapInput == null || jobInputs == null || jobInputs.length == 0)
-			return 0;
+		String mapInput = mapRecords.get(POS_MAP_INPUT).getProcess();
+		if (GeneralUtils.hasCompressionExtension(mapInput))
+			return true;
 
-		int pos = -1;
-		int numMatches = 0;
+		if (ProfileUtils.isPigTempPath(conf, mapInput))
+			return conf.getBoolean(Constants.PIG_TEMP_COMPRESSION, false);
 
-		// Find the matching job input
-		for (int i = 0; i < jobInputs.length; ++i) {
-			if (mapInput.matches(ProfileUtils.convertGlobToRegEx(jobInputs[i],
-					false))) {
-				pos = i;
-				++numMatches;
-			}
-		}
-
-		// Check for unique match
-		if (pos != -1 && numMatches == 1)
-			return pos;
-
-		// The most common case for multiple matches is when the name of a
-		// directory is a substring of the name of another directory
-		pos = -1;
-		numMatches = 0;
-		for (int i = 0; i < jobInputs.length; ++i) {
-			if (mapInput.matches(ProfileUtils.convertGlobToRegEx(jobInputs[i]
-					+ "/", false))) {
-				pos = i;
-				++numMatches;
-			}
-		}
-
-		return (pos == -1) ? 0 : pos;
+		return false;
 	}
 
 	/**
@@ -630,41 +605,41 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 		}
 
 		int count = 0;
-		count += records.get(POS_MAP_STARTUP_MEM).getProcess().equals(
-				STARTUP_MEM) ? 0 : 1;
+		count += records.get(POS_MAP_STARTUP_MEM).getProcess()
+				.equals(STARTUP_MEM) ? 0 : 1;
 		count += records.get(POS_MAP_SETUP).getProcess().equals(SETUP) ? 0 : 1;
 		count += records.get(POS_MAP_SETUP_MEM).getProcess().equals(SETUP_MEM) ? 0
 				: 1;
 		count += records.get(POS_MAP_CLEANUP).getProcess().equals(CLEANUP) ? 0
 				: 1;
-		count += records.get(POS_MAP_CLEANUP_MEM).getProcess().equals(
-				CLEANUP_MEM) ? 0 : 1;
+		count += records.get(POS_MAP_CLEANUP_MEM).getProcess()
+				.equals(CLEANUP_MEM) ? 0 : 1;
 		count += records.get(POS_MAP_TOTAL_RUN).getProcess().equals(TOTAL_RUN) ? 0
 				: 1;
 		count += records.get(POS_MAP_READ).getProcess().equals(READ) ? 0 : 1;
 		count += records.get(POS_MAP_UNCOMPRESS).getProcess()
 				.equals(UNCOMPRESS) ? 0 : 1;
-		count += records.get(POS_MAP_INPUT_K_BYTE_COUNT).getProcess().equals(
-				KEY_BYTE_COUNT) ? 0 : 1;
-		count += records.get(POS_MAP_INPUT_V_BYTE_COUNT).getProcess().equals(
-				VALUE_BYTE_COUNT) ? 0 : 1;
+		count += records.get(POS_MAP_INPUT_K_BYTE_COUNT).getProcess()
+				.equals(KEY_BYTE_COUNT) ? 0 : 1;
+		count += records.get(POS_MAP_INPUT_V_BYTE_COUNT).getProcess()
+				.equals(VALUE_BYTE_COUNT) ? 0 : 1;
 		count += records.get(POS_MAP_MAP).getProcess().equals(MAP) ? 0 : 1;
 		count += records.get(POS_MAP_WRITE).getProcess().equals(WRITE) ? 0 : 1;
 		count += records.get(POS_MAP_COMPRESS).getProcess().equals(COMPRESS) ? 0
 				: 1;
-		count += records.get(POS_MAP_PARTITION_OUTPUT).getProcess().equals(
-				PARTITION_OUTPUT) ? 0 : 1;
-		count += records.get(POS_MAP_SERIALIZE_OUTPUT).getProcess().equals(
-				SERIALIZE_OUTPUT) ? 0 : 1;
+		count += records.get(POS_MAP_PARTITION_OUTPUT).getProcess()
+				.equals(PARTITION_OUTPUT) ? 0 : 1;
+		count += records.get(POS_MAP_SERIALIZE_OUTPUT).getProcess()
+				.equals(SERIALIZE_OUTPUT) ? 0 : 1;
 		count += records.get(POS_MAP_MEM).getProcess().equals(MAP_MEM) ? 0 : 1;
 		count += records.get(POS_MAP_DIR_WRITE).getProcess().equals(WRITE) ? 0
 				: 1;
 		count += records.get(POS_MAP_DIR_COMPRESS).getProcess()
 				.equals(COMPRESS) ? 0 : 1;
-		count += records.get(POS_MAP_OUTPUT_K_BYTE_COUNT).getProcess().equals(
-				KEY_BYTE_COUNT) ? 0 : 1;
-		count += records.get(POS_MAP_OUTPUT_V_BYTE_COUNT).getProcess().equals(
-				VALUE_BYTE_COUNT) ? 0 : 1;
+		count += records.get(POS_MAP_OUTPUT_K_BYTE_COUNT).getProcess()
+				.equals(KEY_BYTE_COUNT) ? 0 : 1;
+		count += records.get(POS_MAP_OUTPUT_V_BYTE_COUNT).getProcess()
+				.equals(VALUE_BYTE_COUNT) ? 0 : 1;
 
 		if (count != 0)
 			throw new ProfileFormatException(
@@ -698,16 +673,16 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 		for (int i = 0; i < records.size(); i += NUM_SPILL_PHASES) {
 			count += records.get(i + POS_SPILL_SORT_AND_SPILL).getProcess()
 					.equals(SORT_AND_SPILL) ? 0 : 1;
-			count += records.get(i + POS_SPILL_QUICK_SORT).getProcess().equals(
-					QUICK_SORT) ? 0 : 1;
-			count += records.get(i + POS_SPILL_SORT_COUNT).getProcess().equals(
-					SORT_COUNT) ? 0 : 1;
-			count += records.get(i + POS_SPILL_COMBINE).getProcess().equals(
-					COMBINE) ? 0 : 1;
+			count += records.get(i + POS_SPILL_QUICK_SORT).getProcess()
+					.equals(QUICK_SORT) ? 0 : 1;
+			count += records.get(i + POS_SPILL_SORT_COUNT).getProcess()
+					.equals(SORT_COUNT) ? 0 : 1;
+			count += records.get(i + POS_SPILL_COMBINE).getProcess()
+					.equals(COMBINE) ? 0 : 1;
 			count += records.get(i + POS_SPILL_WRITE).getProcess()
 					.equals(WRITE) ? 0 : 1;
-			count += records.get(i + POS_SPILL_COMPRESS).getProcess().equals(
-					COMPRESS) ? 0 : 1;
+			count += records.get(i + POS_SPILL_COMPRESS).getProcess()
+					.equals(COMPRESS) ? 0 : 1;
 			count += records.get(i + POS_SPILL_UNCOMPRESS_BYTE_COUNT)
 					.getProcess().equals(UNCOMPRESS_BYTE_COUNT) ? 0 : 1;
 			count += records.get(i + POS_SPILL_COMPRESS_BYTE_COUNT)
@@ -743,14 +718,14 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 		}
 
 		int count = 0;
-		count += records.get(POS_MERGE_TOTAL_MERGE).getProcess().equals(
-				TOTAL_MERGE) ? 0 : 1;
-		count += records.get(POS_MERGE_READ_WRITE).getProcess().equals(
-				READ_WRITE) ? 0 : 1;
-		count += records.get(POS_MERGE_READ_WRITE_COUNT).getProcess().equals(
-				READ_WRITE_COUNT) ? 0 : 1;
-		count += records.get(POS_MERGE_UNCOMPRESS).getProcess().equals(
-				UNCOMPRESS) ? 0 : 1;
+		count += records.get(POS_MERGE_TOTAL_MERGE).getProcess()
+				.equals(TOTAL_MERGE) ? 0 : 1;
+		count += records.get(POS_MERGE_READ_WRITE).getProcess()
+				.equals(READ_WRITE) ? 0 : 1;
+		count += records.get(POS_MERGE_READ_WRITE_COUNT).getProcess()
+				.equals(READ_WRITE_COUNT) ? 0 : 1;
+		count += records.get(POS_MERGE_UNCOMPRESS).getProcess()
+				.equals(UNCOMPRESS) ? 0 : 1;
 		count += records.get(POS_MERGE_COMPRESS).getProcess().equals(COMPRESS) ? 0
 				: 1;
 

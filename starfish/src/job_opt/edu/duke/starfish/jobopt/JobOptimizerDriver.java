@@ -21,8 +21,8 @@ import org.apache.hadoop.fs.Path;
 import edu.duke.starfish.jobopt.optimizer.JobOptimizer;
 import edu.duke.starfish.profile.profileinfo.ClusterConfiguration;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
-import edu.duke.starfish.profile.profileinfo.utils.XMLClusterParser;
-import edu.duke.starfish.profile.profiler.XMLProfileParser;
+import edu.duke.starfish.profile.utils.XMLClusterParser;
+import edu.duke.starfish.profile.utils.XMLProfileParser;
 import edu.duke.starfish.whatif.data.DataSetModel;
 import edu.duke.starfish.whatif.data.FixedInputSpecsDataSetModel;
 import edu.duke.starfish.whatif.data.MapInputSpecs;
@@ -194,10 +194,10 @@ public class JobOptimizerDriver {
 		// Get the task scheduler
 		IWhatIfScheduler scheduler = null;
 		if (line.hasOption(SCHEDULER)) {
-			scheduler = JobOptimizer.getTaskScheduler(line
-					.getOptionValue(SCHEDULER));
+			scheduler = JobOptimizer.getTaskScheduler(cluster,
+					line.getOptionValue(SCHEDULER));
 		} else {
-			scheduler = new BasicFIFOScheduler();
+			scheduler = new BasicFIFOScheduler(cluster);
 		}
 
 		// Get the job profile
@@ -213,15 +213,15 @@ public class JobOptimizerDriver {
 			mode = line.getOptionValue(MODE);
 		}
 		JobOptimizer optimizer = JobOptimizer.getJobOptimizer(mode, jobOracle,
-				dataModel, cluster, scheduler);
+				dataModel, cluster, conf, scheduler);
 
 		// Find the best configuration
 		long start = System.currentTimeMillis();
-		Configuration bestConf = optimizer.findBestConfiguration(conf, false);
+		optimizer.optimize();
 		long end = System.currentTimeMillis();
 		LOG.info("Job optimization time (ms): " + (end - start));
 		try {
-			bestConf.writeXml(out);
+			optimizer.getBestConfiguration(false).writeXml(out);
 			out.println();
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -254,8 +254,8 @@ public class JobOptimizerDriver {
 		Option inputOption = OptionBuilder.withArgName(INPUT).hasArg()
 				.withDescription("The input specifications file").create(INPUT);
 		Option clusterOption = OptionBuilder.withArgName(CLUSTER).hasArg()
-				.withDescription("The cluster specifications file").create(
-						CLUSTER);
+				.withDescription("The cluster specifications file")
+				.create(CLUSTER);
 
 		Option outputOption = OptionBuilder.withArgName("filepath").hasArg()
 				.withDescription("An output file to print to").create(OUTPUT);
@@ -459,25 +459,18 @@ public class JobOptimizerDriver {
 			out.println("Configuration options for all modes");
 			out.println("  starfish.job.optimizer.exclude.parameters ()");
 			out.println("");
-			out
-					.println("Configuration options for mode 'rrs' and 'smart_rrs':");
+			out.println("Configuration options for mode 'rrs' and 'smart_rrs':");
 			out.println("  starfish.job.optimizer.num.values.per.param (2)");
 			out.println("  starfish.job.optimizer.use.random.values (false)");
 			out.println("");
-			out
-					.println("Configuration options for mode 'rrs' and 'smart_rrs':");
+			out.println("Configuration options for mode 'rrs' and 'smart_rrs':");
 			out.println("");
-			out
-					.println("  starfish.job.optimizer.explore.confidence.prob (0.99)");
+			out.println("  starfish.job.optimizer.explore.confidence.prob (0.99)");
 			out.println("  starfish.job.optimizer.explore.percentile (0.1)");
-			out
-					.println("  starfish.job.optimizer.exploit.confidence.prob (0.99)");
-			out
-					.println("  starfish.job.optimizer.exploit.expected.value (0.8)");
-			out
-					.println("  starfish.job.optimizer.exploit.reduction.ratio (0.5)");
-			out
-					.println("  starfish.job.optimizer.exploit.termination.size (0.001)");
+			out.println("  starfish.job.optimizer.exploit.confidence.prob (0.99)");
+			out.println("  starfish.job.optimizer.exploit.expected.value (0.8)");
+			out.println("  starfish.job.optimizer.exploit.reduction.ratio (0.5)");
+			out.println("  starfish.job.optimizer.exploit.termination.size (0.001)");
 			out.println("");
 		}
 	}

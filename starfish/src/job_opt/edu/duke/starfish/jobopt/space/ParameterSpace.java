@@ -8,13 +8,14 @@ import java.util.List;
 import edu.duke.starfish.jobopt.params.HadoopParameter;
 import edu.duke.starfish.jobopt.params.ParamTaskEffect;
 import edu.duke.starfish.jobopt.params.ParameterDescriptor;
+import edu.duke.starfish.jobopt.rrs.IRRSSearchSpace;
 
 /**
  * Represents the entire Hadoop configuration parameter space
  * 
  * @author hero
  */
-public class ParameterSpace {
+public class ParameterSpace implements IRRSSearchSpace<ParameterSpacePoint> {
 
 	/* ***************************************************************
 	 * DATA MEMBERS
@@ -60,6 +61,26 @@ public class ParameterSpace {
 	}
 
 	/**
+	 * Get an empty space point
+	 * 
+	 * @return an empty space point
+	 */
+	@Override
+	public ParameterSpacePoint getEmptySpacePoint() {
+		return new ParameterSpacePoint();
+	}
+
+	/**
+	 * Get the number of dimensions in the space
+	 * 
+	 * @return the number of dimensions in the space
+	 */
+	@Override
+	public int getNumDimensions() {
+		return paramDescriptors.size();
+	}
+
+	/**
 	 * Get the number of parameters in the space
 	 * 
 	 * @return the number of parameters in the space
@@ -74,6 +95,7 @@ public class ParameterSpace {
 	 * 
 	 * @return the number of unique points in the space
 	 */
+	@Override
 	public int getNumUniqueSpacePoints() {
 
 		if (paramDescriptors.size() == 0)
@@ -138,6 +160,7 @@ public class ParameterSpace {
 	 * 
 	 * @return a parameter space point
 	 */
+	@Override
 	public ParameterSpacePoint getRandomSpacePoint() {
 		ParameterSpacePoint point = new ParameterSpacePoint();
 
@@ -163,6 +186,7 @@ public class ParameterSpace {
 	 *            the scale factor for the parameter space
 	 * @return a random space point
 	 */
+	@Override
 	public ParameterSpacePoint getRandomSpacePoint(ParameterSpacePoint center,
 			double scale) {
 		ParameterSpacePoint point = new ParameterSpacePoint();
@@ -190,6 +214,7 @@ public class ParameterSpace {
 	 *            the max number of values to obtain from each parameter
 	 * @return a list of parameter space points
 	 */
+	@Override
 	public List<ParameterSpacePoint> getSpacePointGrid(boolean random,
 			int numValuesPerParam) {
 		ArrayList<ParameterSpacePoint> points = new ArrayList<ParameterSpacePoint>();

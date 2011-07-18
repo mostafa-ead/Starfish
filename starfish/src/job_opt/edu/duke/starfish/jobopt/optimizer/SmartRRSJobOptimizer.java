@@ -6,12 +6,12 @@ import org.apache.hadoop.conf.Configuration;
 
 import edu.duke.starfish.jobopt.params.HadoopParameter;
 import edu.duke.starfish.jobopt.params.IntegerParamDescriptor;
+import edu.duke.starfish.jobopt.rrs.RecursiveRandomSearch;
 import edu.duke.starfish.jobopt.space.ParamSpaceUtils;
 import edu.duke.starfish.jobopt.space.ParameterSpace;
 import edu.duke.starfish.jobopt.space.ParameterSpacePoint;
 import edu.duke.starfish.profile.profileinfo.ClusterConfiguration;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
-import edu.duke.starfish.whatif.WhatIfEngine;
 import edu.duke.starfish.whatif.data.DataSetModel;
 import edu.duke.starfish.whatif.oracle.JobProfileOracle;
 import edu.duke.starfish.whatif.scheduler.IWhatIfScheduler;
@@ -36,15 +36,17 @@ public class SmartRRSJobOptimizer extends RRSJobOptimizer {
 	 *            the job profile oracle
 	 * @param dataModel
 	 *            the data set model
-	 * @param cluster
-	 *            the cluster setup
 	 * @param scheduler
 	 *            the scheduler
+	 * @param cluster
+	 *            the cluster setup
+	 * @param conf
+	 *            the current configuration settings
 	 */
 	public SmartRRSJobOptimizer(JobProfileOracle jobOracle,
-			DataSetModel dataModel, ClusterConfiguration cluster,
-			IWhatIfScheduler scheduler) {
-		super(jobOracle, dataModel, cluster, scheduler);
+			DataSetModel dataModel, IWhatIfScheduler scheduler,
+			ClusterConfiguration cluster, Configuration conf) {
+		super(jobOracle, dataModel, scheduler, cluster, conf);
 	}
 
 	/* ***************************************************************
@@ -53,33 +55,29 @@ public class SmartRRSJobOptimizer extends RRSJobOptimizer {
 	 */
 
 	/**
-	 * @see edu.duke.starfish.jobopt.optimizer.JobOptimizer#findBestConfiguration(Configuration)
+	 * @see edu.duke.starfish.jobopt.optimizer.JobOptimizer#optimizeInternal()
 	 */
 	@Override
-	public Configuration findBestConfiguration(Configuration jobConf,
-			boolean fullConf) {
-
-		// Initializations
-		Configuration conf = new Configuration(jobConf);
-		WhatIfEngine whatifEngine = new WhatIfEngine(jobOracle, dataModel,
-				scheduler, cluster, conf);
-		MRJobProfile virtualProf = jobOracle.whatif(conf, dataModel);
+	protected ParameterSpacePoint optimizeInternal() {
 
 		// Initialize the map parameter space
-		ParameterSpace space = ParamSpaceUtils.getParamSpaceForMappers(conf);
-		ParamSpaceUtils.adjustParameterDescriptors(space, cluster, conf,
+		MRJobProfile virtualProf = jobOracle.whatif(currConf, dataModel);
+		ParameterSpace space = ParamSpaceUtils
+				.getParamSpaceForMappers(currConf);
+		ParamSpaceUtils.adjustParameterDescriptors(space, cluster, currConf,
 				virtualProf);
 
 		// Perform RRS to find the best point in the map space
 		jobOracle.setIgnoreReducers(true);
 		scheduler.setIgnoreReducers(true);
-		ParameterSpacePoint optMapPoint = performRecursiveRandomSearch(space,
-				whatifEngine, conf);
-		optMapPoint.populateConfiguration(conf);
+		RecursiveRandomSearch<ParameterSpacePoint> rrs = 
+			new RecursiveRandomSearch<ParameterSpacePoint>(currConf);
+		ParameterSpacePoint optMapPoint = rrs.findBestSpacePoint(space, this);
+		optMapPoint.populateConfiguration(currConf);
 
 		// Initialize the reduce parameter space
-		space = ParamSpaceUtils.getParamSpaceForReducers(conf);
-		ParamSpaceUtils.adjustParameterDescriptors(space, cluster, conf,
+		space = ParamSpaceUtils.getParamSpaceForReducers(currConf);
+		ParamSpaceUtils.adjustParameterDescriptors(space, cluster, currConf,
 				virtualProf);
 
 		if (space.containsParamDescriptor(HadoopParameter.RED_TASKS)) {
@@ -92,22 +90,10 @@ public class SmartRRSJobOptimizer extends RRSJobOptimizer {
 		// Perform RRS to find the best point in the reduce space
 		jobOracle.setIgnoreReducers(false);
 		scheduler.setIgnoreReducers(false);
-		ParameterSpacePoint optRedPoint = performRecursiveRandomSearch(space,
-				whatifEngine, conf);
+		ParameterSpacePoint optRedPoint = rrs.findBestSpacePoint(space, this);
 
-		// Create the best MR job profile
-		optMapPoint.populateConfiguration(conf);
-		optRedPoint.populateConfiguration(conf);
-		bestMRJobProfile = jobOracle.whatif(conf, dataModel);
-		bestRunningTime = whatifEngine.whatIfJobConfGetTime(conf);
-
-		// Return the best configuration
-		if (!fullConf) {
-			conf = new Configuration(false);
-			optMapPoint.populateConfiguration(conf);
-			optRedPoint.populateConfiguration(conf);
-		}
-		bestConf = conf;
-		return conf;
+		// Add the best reduce param values and return
+		optMapPoint.addParamValues(optRedPoint);
+		return optMapPoint;
 	}
 }

@@ -1,13 +1,14 @@
 package edu.duke.starfish.jobopt.optimizer;
 
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_COMBINE_CLASS;
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.STARFISH_USE_COMBINER;
+import static edu.duke.starfish.profile.utils.Constants.MR_COMBINE_CLASS;
+import static edu.duke.starfish.profile.utils.Constants.STARFISH_USE_COMBINER;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Collection;
+import java.util.Date;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -18,14 +19,15 @@ import org.apache.hadoop.mapreduce.Job;
 
 import edu.duke.starfish.jobopt.space.ParameterSpacePoint;
 import edu.duke.starfish.profile.profileinfo.ClusterConfiguration;
+import edu.duke.starfish.profile.profileinfo.execution.jobs.MRJobInfo;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
-import edu.duke.starfish.profile.profiler.XMLProfileParser;
+import edu.duke.starfish.profile.profiler.MRJobLogsManager;
+import edu.duke.starfish.profile.profiler.Profiler;
 import edu.duke.starfish.whatif.WhatIfEngine;
 import edu.duke.starfish.whatif.data.DataSetModel;
 import edu.duke.starfish.whatif.data.RealAvgDataSetModel;
 import edu.duke.starfish.whatif.oracle.JobProfileOracle;
 import edu.duke.starfish.whatif.scheduler.BasicFIFOScheduler;
-import edu.duke.starfish.whatif.scheduler.BasicFIFOSchedulerForOptimizer;
 import edu.duke.starfish.whatif.scheduler.IWhatIfScheduler;
 
 /**
@@ -39,7 +41,6 @@ public abstract class JobOptimizer {
 	 * DATA MEMBERS
 	 * ***************************************************************
 	 */
-
 	private static final Log LOG = LogFactory.getLog(JobOptimizer.class);
 
 	// Data members for the Optimizer
@@ -47,11 +48,29 @@ public abstract class JobOptimizer {
 	protected DataSetModel dataModel; // The data model
 	protected ClusterConfiguration cluster; // The cluster setup
 	protected IWhatIfScheduler scheduler; // The task scheduler
+	protected Configuration currConf; // The best configuration
 
-	// Populated after the optimization process
-	protected Configuration bestConf; // The best configuration
-	protected MRJobProfile bestMRJobProfile; // The best MRJobProfile
-	protected double bestRunningTime;
+	private WhatIfEngine whatifEngine; // The what-if engine
+	private Date submissionTime; // The job submission time
+
+	// Populated AFTER the optimization process
+	private ParameterSpacePoint bestPoint; // The best point
+	private MRJobInfo bestJob; // The best job
+
+	/* ***************************************************************
+	 * STATIC DATA MEMBERS
+	 * ***************************************************************
+	 */
+
+	public static final String JOB_OPT_TYPE = "starfish.job.optimizer.type";
+	public static final String JOB_OPT_EXCLUDE_PARAMS = "starfish.job.optimizer.exclude.parameters";
+	public static final String JOB_OPT_OUTPUT = "starfish.job.optimizer.output";
+	public static final String JOB_OPT_MODE = "starfish.job.optimizer.mode";
+	public static final String JOB_OPT_PROFILE_ID = "starfish.job.optimizer.profile.id";
+	public static final String JOB_OPT_SCHEDULER = "starfish.whatif.task.scheduler";
+
+	public static final String JOB_OPT_RUN = "run";
+	public static final String JOB_OPT_RECOMMEND = "recommend";
 
 	// Optimizer types
 	private static final String OPT_FULL = "full";
@@ -70,18 +89,28 @@ public abstract class JobOptimizer {
 	 *            the job profile oracle
 	 * @param dataModel
 	 *            the data set model
-	 * @param cluster
-	 *            the cluster setup
 	 * @param scheduler
 	 *            the scheduler
+	 * @param cluster
+	 *            the cluster setup
+	 * @param conf
+	 *            the current configuration settings
 	 */
 	public JobOptimizer(JobProfileOracle jobOracle, DataSetModel dataModel,
-			ClusterConfiguration cluster, IWhatIfScheduler scheduler) {
+			IWhatIfScheduler scheduler, ClusterConfiguration cluster,
+			Configuration conf) {
+
 		this.jobOracle = jobOracle;
 		this.dataModel = dataModel;
 		this.cluster = cluster;
 		this.scheduler = scheduler;
-		this.bestMRJobProfile = null;
+		this.currConf = new Configuration(conf);
+
+		this.bestPoint = null;
+		this.bestJob = null;
+
+		this.whatifEngine = new WhatIfEngine(jobOracle, dataModel, scheduler);
+		this.submissionTime = null;
 	}
 
 	/* ***************************************************************
@@ -92,62 +121,93 @@ public abstract class JobOptimizer {
 	/**
 	 * Get the best MR job configuration.
 	 * 
-	 * Warning: This method should only be called after findBestConfiguration()
-	 * is called
+	 * Warning: This method should only be called after optimize() is called
+	 * 
+	 * @param fullConf
+	 *            whether to produce the full configuration or only the
+	 *            optimized parameters
 	 * 
 	 * @return the best MR job configuration
 	 */
-	public Configuration getBestConfiguration() {
+	public Configuration getBestConfiguration(boolean fullConf) {
+		Configuration bestConf;
+		if (fullConf) {
+			bestConf = new Configuration(currConf);
+		} else {
+			bestConf = new Configuration(false);
+		}
+		bestPoint.populateConfiguration(bestConf);
 		return bestConf;
+	}
+
+	/**
+	 * Get the best MR job description.
+	 * 
+	 * Warning: This method should only be called after optimize() is called
+	 * 
+	 * @return the best MR job
+	 */
+	public MRJobInfo getBestMRJobInfo() {
+		return bestJob;
 	}
 
 	/**
 	 * Get the best MR job profile.
 	 * 
-	 * Warning: This method should only be called after findBestConfiguration()
-	 * is called
+	 * Warning: This method should only be called after optimize() is called
 	 * 
 	 * @return the best MR job profile
 	 */
 	public MRJobProfile getBestMRJobProfile() {
-		return bestMRJobProfile;
+		return bestJob.getProfile();
 	}
 
 	/**
 	 * Get the best MR job running time (in ms).
 	 * 
-	 * Warning: This method should only be called after findBestConfiguration()
-	 * is called
+	 * Warning: This method should only be called after optimize() is called
 	 * 
 	 * @return the best MR job running time
 	 */
 	public double getBestRunningTime() {
-		return bestRunningTime;
+		return bestJob.getDuration();
 	}
 
 	/**
-	 * Find the best configuration for the job
+	 * The main optimization method for a MapReduce job. This method is
+	 * responsible for enumerating the search space of configuration parameter
+	 * settings to find the best settings. After using this method, you can use
+	 * any of the getBestX() methods.
 	 * 
-	 * @param jobConf
-	 *            the existing job configuration
-	 * @return the best configuration
 	 */
-	public Configuration findBestConfiguration(Configuration jobConf) {
-		return findBestConfiguration(jobConf, true);
+	public void optimize() {
+		optimize(new Date());
 	}
 
 	/**
-	 * Find the best configuration for the job
+	 * The main optimization method for a MapReduce job. This method is
+	 * responsible for enumerating the search space of configuration parameter
+	 * settings to find the best settings. After using this method, you can use
+	 * any of the getBestX() methods.
 	 * 
-	 * @param jobConf
-	 *            the existing job configuration
-	 * @param fullConf
-	 *            whether to produce the full configuration or only the
-	 *            optimized parameters
-	 * @return the best configuration
+	 * The specified submission time will be used by the scheduler when
+	 * simulating the job execution. This method is useful when you want to
+	 * optimize multiple jobs that will be executed on the same cluster.
+	 * 
+	 * @param submissionTime
+	 *            the job submission time
 	 */
-	public abstract Configuration findBestConfiguration(Configuration jobConf,
-			boolean fullConf);
+	public void optimize(Date submissionTime) {
+		// Checkpoint the schedule and optimize the job
+		this.submissionTime = submissionTime;
+		scheduler.checkpoint();
+		bestPoint = optimizeInternal();
+
+		// Get the best MR job (based on the best configuration)
+		scheduler.reset();
+		bestJob = whatifEngine.whatIfJobConfGetJobInfo(submissionTime,
+				getBestConfiguration(true));
+	}
 
 	/* ***************************************************************
 	 * PROTECTED METHODS
@@ -155,11 +215,18 @@ public abstract class JobOptimizer {
 	 */
 
 	/**
+	 * The main optimization method to be overridden. This method is responsible
+	 * for enumerating the configuration parameter space and returning the best
+	 * parameter space point.
+	 * 
+	 * @return the best parameter space point
+	 */
+	protected abstract ParameterSpacePoint optimizeInternal();
+
+	/**
 	 * Find the best parameter space point from the collection of points using
 	 * the provided What-if Engine and configuration
 	 * 
-	 * @param whatifEngine
-	 *            the What-if Engine
 	 * @param points
 	 *            the parameter space points
 	 * @param conf
@@ -167,8 +234,7 @@ public abstract class JobOptimizer {
 	 * @return the best parameter space point
 	 */
 	protected ParameterSpacePoint findBestParameterSpacePoint(
-			WhatIfEngine whatifEngine, Collection<ParameterSpacePoint> points,
-			Configuration conf) {
+			Collection<ParameterSpacePoint> points, Configuration conf) {
 
 		// Find the best parameter space point
 		double minTime = Double.MAX_VALUE;
@@ -179,7 +245,7 @@ public abstract class JobOptimizer {
 
 			// Ask the what-if question for each parameter space point
 			point.populateConfiguration(conf);
-			currTime = whatifEngine.whatIfJobConfGetTime(conf);
+			currTime = whatif(conf);
 
 			if (currTime < minTime) {
 				minTime = currTime;
@@ -188,6 +254,19 @@ public abstract class JobOptimizer {
 		}
 
 		return bestPoint;
+	}
+
+	/**
+	 * Asks the What-if Engine to find the running time of the job with this
+	 * configuration
+	 * 
+	 * @param conf
+	 *            the suggested configuration
+	 * @return the estimated running time
+	 */
+	protected double whatif(Configuration conf) {
+		scheduler.reset();
+		return whatifEngine.whatIfJobConfGetTime(submissionTime, conf);
 	}
 
 	/* ***************************************************************
@@ -205,15 +284,15 @@ public abstract class JobOptimizer {
 	 * 
 	 * @param job
 	 *            the MapReduce job
-	 * @param profileFile
-	 *            the job profile XML file
+	 * @param jobProfileId
+	 *            the job id of the profiled job
 	 * @return true if the optimization succeeded
 	 */
 	public static boolean processJobOptimizationRequest(Job job,
-			String profileFile) {
+			String jobProfileId) {
 
 		// Find the best configuration
-		Configuration bestConf = findBestJobConfiguration(job, profileFile);
+		Configuration bestConf = findBestJobConfiguration(job, jobProfileId);
 		if (bestConf != null) {
 			// Copy the optimal configurations
 			Configuration conf = job.getConfiguration();
@@ -253,34 +332,21 @@ public abstract class JobOptimizer {
 	 * 
 	 * @param job
 	 *            the MapReduce job
-	 * @param profileFile
-	 *            the job profile XML file
+	 * @param jobProfileId
+	 *            the job id of the profiled job
 	 * @return true if the optimization succeeded
 	 */
 	public static boolean processJobRecommendationRequest(Job job,
-			String profileFile) {
+			String jobProfileId) {
 
 		// Find the best configuration
-		Configuration bestConf = findBestJobConfiguration(job, profileFile);
+		Configuration bestConf = findBestJobConfiguration(job, jobProfileId);
 		if (bestConf != null) {
 
 			// Get the output location
-			PrintStream out = null;
-			String output = job.getConfiguration().get(
-					"starfish.job.optimizer.output", "stdout");
-			if (output.equals("stdout")) {
-				out = System.out;
-			} else if (output.equals("stderr")) {
-				out = System.err;
-			} else {
-				File outFile = new File(output);
-				try {
-					out = new PrintStream(outFile);
-				} catch (FileNotFoundException e) {
-					LOG.error("Job optimization failed!", e);
-					return false;
-				}
-			}
+			PrintStream out = getOptimizerOutput(job.getConfiguration());
+			if (out == null)
+				return false;
 
 			// Print out the recommendation
 			try {
@@ -306,48 +372,56 @@ public abstract class JobOptimizer {
 	 * 
 	 * @param job
 	 *            the MapReduce job
-	 * @param profileFile
-	 *            the job profile XML file
+	 * @param jobProfileId
+	 *            the job id of the profiled job
 	 * @return the optimized configuration
 	 */
 	public static Configuration findBestJobConfiguration(Job job,
-			String profileFile) {
+			String jobProfileId) {
 
 		// Note: we must surround the entire method to catch all exceptions
 		// because BTrace cannot catch them
 		Configuration conf = job.getConfiguration();
-		Configuration bestConf = null;
 		try {
+			// Get the logs manager
+			MRJobLogsManager manager = new MRJobLogsManager();
+			String resultsDir = conf.get(Profiler.PROFILER_OUTPUT_DIR);
+			manager.setResultsDir(resultsDir);
+
+			// Get the source profile
+			MRJobProfile sourceProf = manager.getMRJobProfile(jobProfileId);
+			if (sourceProf == null) {
+				LOG.error("Unable to find the profile for " + jobProfileId);
+				return null;
+			}
+
 			// Create the default parameters for the Job Optimizer
 			DataSetModel dataModel = new RealAvgDataSetModel();
 			ClusterConfiguration cluster = new ClusterConfiguration(conf);
-			MRJobProfile sourceProf = XMLProfileParser
-					.importJobProfile(new File(profileFile));
 			JobProfileOracle jobOracle = new JobProfileOracle(sourceProf);
 
 			// Get the task scheduler
-			String strScheduler = conf.get("starfish.whatif.task.scheduler",
-					"advanced");
-			IWhatIfScheduler scheduler = getTaskScheduler(strScheduler);
+			String strScheduler = conf.get(JOB_OPT_SCHEDULER, SCH_ADVANCED);
+			IWhatIfScheduler scheduler = getTaskScheduler(cluster, strScheduler);
 
 			// Get the job optimizer
-			String type = conf
-					.get("starfish.job.optimizer.type", OPT_SMART_RRS);
+			String type = conf.get(JOB_OPT_TYPE, OPT_SMART_RRS);
 			LOG.info("Job optimizer used: " + type);
 			JobOptimizer optimizer = JobOptimizer.getJobOptimizer(type,
-					jobOracle, dataModel, cluster, scheduler);
+					jobOracle, dataModel, cluster, conf, scheduler);
 
 			// Find the best configuration
 			long start = System.currentTimeMillis();
-			bestConf = optimizer.findBestConfiguration(conf, false);
+			optimizer.optimize();
 			long end = System.currentTimeMillis();
 			LOG.info("Job optimization time (ms): " + (end - start));
 
+			return optimizer.getBestConfiguration(false);
+
 		} catch (Exception e) {
 			LOG.error("Job optimization failed!", e);
+			return null;
 		}
-
-		return bestConf;
 	}
 
 	/**
@@ -362,10 +436,11 @@ public abstract class JobOptimizer {
 	 * @return the job optimizer
 	 */
 	public static JobOptimizer getJobOptimizer(MRJobProfile profile,
-			DataSetModel dataModel, ClusterConfiguration cluster) {
+			DataSetModel dataModel, ClusterConfiguration cluster,
+			Configuration conf) {
 
 		return getJobOptimizer(OPT_SMART_RRS, new JobProfileOracle(profile),
-				dataModel, cluster, new BasicFIFOScheduler());
+				dataModel, cluster, conf, new BasicFIFOScheduler(cluster));
 	}
 
 	/**
@@ -379,27 +454,30 @@ public abstract class JobOptimizer {
 	 *            the data model
 	 * @param cluster
 	 *            the cluster
+	 * @param conf
+	 *            the current configuration settings
 	 * @param scheduler
 	 *            the scheduler
 	 * @return the job optimizer
 	 */
 	public static JobOptimizer getJobOptimizer(String type,
 			JobProfileOracle jobOracle, DataSetModel dataModel,
-			ClusterConfiguration cluster, IWhatIfScheduler scheduler) {
+			ClusterConfiguration cluster, Configuration conf,
+			IWhatIfScheduler scheduler) {
 
 		JobOptimizer optimizer = null;
 		if (type.equals(OPT_FULL)) {
-			optimizer = new FullEnumJobOptimizer(jobOracle, dataModel, cluster,
-					scheduler);
+			optimizer = new FullEnumJobOptimizer(jobOracle, dataModel,
+					scheduler, cluster, conf);
 		} else if (type.equals(OPT_SMART_FULL)) {
 			optimizer = new SmartEnumJobOptimizer(jobOracle, dataModel,
-					cluster, scheduler);
+					scheduler, cluster, conf);
 		} else if (type.equals(OPT_RRS)) {
-			optimizer = new RRSJobOptimizer(jobOracle, dataModel, cluster,
-					scheduler);
+			optimizer = new RRSJobOptimizer(jobOracle, dataModel, scheduler,
+					cluster, conf);
 		} else if (type.equals(OPT_SMART_RRS)) {
-			optimizer = new SmartRRSJobOptimizer(jobOracle, dataModel, cluster,
-					scheduler);
+			optimizer = new SmartRRSJobOptimizer(jobOracle, dataModel,
+					scheduler, cluster, conf);
 		} else {
 			LOG.error("Unsupported optimizer type: " + type);
 		}
@@ -409,17 +487,20 @@ public abstract class JobOptimizer {
 	/**
 	 * Create and return the requested scheduler
 	 * 
+	 * @param cluster
+	 *            the cluster configuration for the scheduler to use
 	 * @param type
 	 *            the type of the scheduler (basic, advanced)
 	 * @return the scheduler
 	 */
-	public static IWhatIfScheduler getTaskScheduler(String type) {
+	public static IWhatIfScheduler getTaskScheduler(
+			ClusterConfiguration cluster, String type) {
 
 		IWhatIfScheduler scheduler = null;
 		if (type.equals(SCH_BASIC)) {
-			scheduler = new BasicFIFOSchedulerForOptimizer();
+			LOG.error("The 'basic' optimizer is not supported anymore!");
 		} else if (type.equals(SCH_ADVANCED)) {
-			scheduler = new BasicFIFOScheduler();
+			scheduler = new BasicFIFOScheduler(cluster);
 		} else {
 			LOG.error("Unsupported optimizer type: " + type);
 		}
@@ -427,4 +508,62 @@ public abstract class JobOptimizer {
 		return scheduler;
 	}
 
+	/**
+	 * Get the output stream to use for the optimizer's output based on the
+	 * configuration setting "starfish.job.optimizer.output"
+	 * 
+	 * @param conf
+	 *            the configuration
+	 * @return the output stream (null if something goes wrong)
+	 */
+	public static PrintStream getOptimizerOutput(Configuration conf) {
+
+		// Get the output location
+		PrintStream out = null;
+		String output = conf.get(JOB_OPT_OUTPUT, "stdout");
+		if (output.equals("stdout")) {
+			out = System.out;
+		} else if (output.equals("stderr")) {
+			out = System.err;
+		} else {
+			File outFile = new File(output);
+			try {
+				out = new PrintStream(outFile);
+			} catch (FileNotFoundException e) {
+				LOG.error("Unable to build output stream", e);
+			}
+		}
+
+		return out;
+	}
+
+	/**
+	 * Loads system properties related to optimization into the Hadoop
+	 * configuration. The system properties are set in the bin/config.sh script.
+	 * 
+	 * @param conf
+	 *            the configuration
+	 */
+	public static void loadOptimizationSystemProperties(Configuration conf) {
+
+		// Load the common system properties
+		Profiler.loadCommonSystemProperties(conf);
+
+		// Set the optimizer type
+		if (conf.get(JOB_OPT_TYPE) == null)
+			conf.set(JOB_OPT_TYPE, System.getProperty(JOB_OPT_TYPE));
+
+		// Set the task scheduler
+		if (conf.get(JOB_OPT_SCHEDULER) == null)
+			conf.set(JOB_OPT_SCHEDULER, System.getProperty(JOB_OPT_SCHEDULER));
+
+		// Set the excluded parameters
+		if (conf.get(JOB_OPT_EXCLUDE_PARAMS) == null)
+			conf.set(JOB_OPT_EXCLUDE_PARAMS,
+					System.getProperty(JOB_OPT_EXCLUDE_PARAMS));
+
+		// Set the output location
+		if (conf.get(JOB_OPT_OUTPUT) == null)
+			conf.set(JOB_OPT_OUTPUT, System.getProperty(JOB_OPT_OUTPUT));
+	}
 }

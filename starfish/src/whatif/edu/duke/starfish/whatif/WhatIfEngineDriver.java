@@ -17,8 +17,8 @@ import org.apache.hadoop.fs.Path;
 
 import edu.duke.starfish.profile.profileinfo.ClusterConfiguration;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
-import edu.duke.starfish.profile.profileinfo.utils.XMLClusterParser;
-import edu.duke.starfish.profile.profiler.XMLProfileParser;
+import edu.duke.starfish.profile.utils.XMLClusterParser;
+import edu.duke.starfish.profile.utils.XMLProfileParser;
 import edu.duke.starfish.whatif.WhatIfEngine.WhatIfQuestion;
 import edu.duke.starfish.whatif.data.DataSetModel;
 import edu.duke.starfish.whatif.data.FixedInputSpecsDataSetModel;
@@ -35,10 +35,10 @@ import edu.duke.starfish.whatif.data.XMLInputSpecsParser;
  *  bin/hadoop jar starfish_whatif.jar &lt;parameters&gt;
  * 
  * The what-if parameters must be one of:
- *   -mode {job_time|details|profile|timeline|mappers|reducers}
+ *   -mode {time|details|profile|timeline|mappers|reducers}
  *        -profile &lt;file&gt; -conf &lt;file&gt; [-output &lt;file&gt;]
  *   
- *   -mode {job_time|details|profile|timeline|mappers|reducers}
+ *   -mode {time|details|profile|timeline|mappers|reducers}
  *        -profile &lt;file&gt; -input &lt;file&gt; -cluster &lt;file&gt;
  *        [-conf &lt;file&gt; -output &lt;file&gt;]
  *   
@@ -49,7 +49,7 @@ import edu.duke.starfish.whatif.data.XMLInputSpecsParser;
  *   -help
  * 
  * Description of execution modes:
- *   job_time     Display the execution time of the predicted job
+ *   time         Display the execution time of the predicted job
  *   details      Display the statistics of the predicted job
  *   profile      Display the predicted profile of the job
  *   timeline     Display the timeline of the predicted job
@@ -153,8 +153,8 @@ public class WhatIfEngineDriver {
 			Configuration conf = new Configuration(true);
 			conf.addResource(new Path(line.getOptionValue(CONF)));
 			DataSetModel model = new RealAvgDataSetModel();
-			XMLInputSpecsParser.exportMapInputSpecs(model
-					.generateMapInputSpecs(conf), out);
+			XMLInputSpecsParser.exportMapInputSpecs(
+					model.generateMapInputSpecs(conf), out);
 			out.close();
 			return;
 		}
@@ -221,8 +221,8 @@ public class WhatIfEngineDriver {
 		Option inputOption = OptionBuilder.withArgName(INPUT).hasArg()
 				.withDescription("The input specifications file").create(INPUT);
 		Option clusterOption = OptionBuilder.withArgName(CLUSTER).hasArg()
-				.withDescription("The cluster specifications file").create(
-						CLUSTER);
+				.withDescription("The cluster specifications file")
+				.create(CLUSTER);
 
 		Option outputOption = OptionBuilder.withArgName("filepath").hasArg()
 				.withDescription("An output file to print to").create(OUTPUT);
@@ -308,7 +308,7 @@ public class WhatIfEngineDriver {
 
 		String mode = line.getOptionValue(MODE);
 
-		// -mode {job_time|details|profile|timeline|mappers|reducers}
+		// -mode {time|details|profile|timeline|mappers|reducers}
 		// -profile <file> -conf <file> [-ouput <file>]
 		// OR
 		// -mode {full|smart_full|rrs|smart_rrs}
@@ -393,12 +393,10 @@ public class WhatIfEngineDriver {
 		out.println(" bin/hadoop jar starfish_whatif.jar <parameters>");
 		out.println("");
 		out.println("The profiler parameters must be one of:");
-		out
-				.println("  -mode {job_time|details|profile|timeline|mappers|reducers}");
+		out.println("  -mode {time|details|profile|timeline|mappers|reducers}");
 		out.println("       -profile <file> -conf <file> [-output <file>]");
 		out.println("");
-		out
-				.println("  -mode {job_time|details|profile|timeline|mappers|reducers}");
+		out.println("  -mode {time|details|profile|timeline|mappers|reducers}");
 		out.println("       -profile <file> -input <file> -cluster <file>");
 		out.println("       [-conf <file> -output <file>]");
 		out.println("");
@@ -414,7 +412,7 @@ public class WhatIfEngineDriver {
 			return;
 
 		out.println("Description of execution modes:");
-		out.println("  job_time     "
+		out.println("  time         "
 				+ "Display the execution time of the predicted job");
 		out.println("  details      "
 				+ "Display the statistics of the predicted job");

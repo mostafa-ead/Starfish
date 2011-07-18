@@ -1,14 +1,17 @@
 package edu.duke.starfish.whatif.virtualfs;
 
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.*;
+import static edu.duke.starfish.profile.utils.Constants.MR_INPUT_FORMAT_CLASS;
+import static edu.duke.starfish.profile.utils.Constants.MR_RED_TASKS;
+import static edu.duke.starfish.profile.utils.Constants.MR_SFIF;
+import static edu.duke.starfish.profile.utils.Constants.MR_TIF;
 
-import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
 
 import edu.duke.starfish.profile.profileinfo.execution.DataLocality;
+import edu.duke.starfish.profile.utils.GeneralUtils;
 import edu.duke.starfish.whatif.data.DataSetModel;
 import edu.duke.starfish.whatif.data.JobOutputSpecs;
 import edu.duke.starfish.whatif.data.MapInputSpecs;
@@ -31,12 +34,6 @@ public class VirtualFSDataSetModel extends DataSetModel {
 
 	public static final String VIRTUAL_INPUT_DIRS = "starfish.virtual.input.dirs";
 
-	private static final NumberFormat nf = NumberFormat.getNumberInstance();
-	{
-		nf.setMinimumIntegerDigits(5);
-		nf.setGroupingUsed(false);
-	}
-
 	/**
 	 * Constructor
 	 * 
@@ -53,7 +50,7 @@ public class VirtualFSDataSetModel extends DataSetModel {
 	 */
 
 	/**
-	 * @see edu.duke.starfish.whatif.data.DataSetModel#generateMapInputSpecs(Configuration)
+	 * @see DataSetModel#generateMapInputSpecs(Configuration)
 	 */
 	@Override
 	public List<MapInputSpecs> generateMapInputSpecs(Configuration conf) {
@@ -67,17 +64,17 @@ public class VirtualFSDataSetModel extends DataSetModel {
 
 		// Create the input specs
 		List<MapInputSpecs> inputSpecs = new ArrayList<MapInputSpecs>();
-		for (int i = 0; i < dirList.length; ++i) {
+		for (String inputDir : dirList) {
 			try {
-				List<VirtualFile> files = vfs.listFiles(dirList[i], true);
+				List<VirtualFile> files = vfs.listFiles(inputDir, true);
+				int i = GeneralUtils.getIndexInPathArray(dirList, inputDir);
 
 				for (VirtualFile file : files) {
-					if (file.isCompress()
-							&& !conf.get(MR_INPUT_FORMAT_CLASS, MR_TIF).equals(
-									MR_SFIF)) {
+					if (!isInputFileSplittable(conf, file)) {
 						// File is compressed and cannot be split
 						inputSpecs.add(new MapInputSpecs(i, 1, file.getSize(),
 								file.isCompress(), DataLocality.DATA_LOCAL));
+
 					} else {
 						// Create the specs per blocks
 						List<VirtualFileBlock> blocks = file.getBlocks();
@@ -105,6 +102,36 @@ public class VirtualFSDataSetModel extends DataSetModel {
 	}
 
 	/* ***************************************************************
+	 * PROTECTED METHODS
+	 * ***************************************************************
+	 */
+
+	/**
+	 * Determine whether the virtual file is splittable or not
+	 * 
+	 * @param conf
+	 *            the configuration
+	 * @param file
+	 *            the virtual file
+	 * @return true if file is splittable
+	 */
+	protected boolean isInputFileSplittable(Configuration conf, VirtualFile file) {
+
+		// Check if the file is compressed
+		if (!file.isCompress())
+			return true;
+
+		// Check for known compression types
+		String name = file.getName();
+		if (GeneralUtils.hasNonSplittableComprExtension(name))
+			return false;
+		else if (GeneralUtils.hasSplittableComprExtension(name))
+			return true;
+
+		return conf.get(MR_INPUT_FORMAT_CLASS, MR_TIF).equals(MR_SFIF);
+	}
+
+	/* ***************************************************************
 	 * PUBLIC STATIC METHODS
 	 * ***************************************************************
 	 */
@@ -119,23 +146,20 @@ public class VirtualFSDataSetModel extends DataSetModel {
 	 */
 	public static void setVirtualInputPaths(Configuration conf,
 			String... inputPaths) {
+
 		if (inputPaths.length == 0)
 			throw new RuntimeException("ERROR: No input paths for the job");
 
 		// Build the virtual file paths
 		String virtualFilePaths = null;
 		for (String inputPath : inputPaths) {
-			if (inputPath.startsWith(VirtualFileSystem.SEPARATOR)) {
-				if (virtualFilePaths == null) {
-					virtualFilePaths = inputPath.trim();
-				} else {
-					virtualFilePaths += "," + inputPath.trim();
-				}
+			inputPath = GeneralUtils.normalizePath(inputPath);
+			if (virtualFilePaths == null) {
+				virtualFilePaths = inputPath;
+			} else {
+				virtualFilePaths += "," + inputPath;
 			}
 		}
-		if (virtualFilePaths == null)
-			throw new RuntimeException(
-					"ERROR: No valid input paths for the job");
 
 		conf.set(VIRTUAL_INPUT_DIRS, virtualFilePaths);
 	}
@@ -156,7 +180,6 @@ public class VirtualFSDataSetModel extends DataSetModel {
 			Configuration conf, String outputDir, List<JobOutputSpecs> outSpecs) {
 
 		boolean mapOnly = conf.getInt(MR_RED_TASKS, 1) == 0;
-		boolean compress = conf.getBoolean(MR_COMPRESS_OUT, false);
 
 		// Trim trailing separator
 		outputDir.trim();
@@ -171,28 +194,14 @@ public class VirtualFSDataSetModel extends DataSetModel {
 			// Create an output file for each reduce task
 			for (JobOutputSpecs outSpec : outSpecs) {
 				for (int i = 0; i < outSpec.getNumTasks(); ++i) {
-					vfs.createFile(buildOutputName(outputDir, id, mapOnly,
-							compress), outSpec.getSize(), compress);
+					vfs.createFile(GeneralUtils.buildMROutputName(outputDir,
+							id, mapOnly, outSpec.isCompressed()), outSpec
+							.getSize(), outSpec.isCompressed());
 					++id;
 				}
 			}
 		} catch (VirtualFSException e) {
 			e.printStackTrace();
 		}
-	}
-
-	private static String buildOutputName(String baseDir, int id,
-			boolean mapOnly, boolean compress) {
-		StringBuilder sb = new StringBuilder();
-
-		sb.append(baseDir);
-		sb.append(VirtualFileSystem.SEPARATOR);
-		sb.append("part-");
-		sb.append(mapOnly ? "m-" : "r-");
-		sb.append(nf.format(id));
-		if (compress)
-			sb.append(".deflate");
-
-		return sb.toString();
 	}
 }

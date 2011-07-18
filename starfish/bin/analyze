@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+
+###################################################################
+# The Job Analysis command script
+#
+# Used to analyse the execution of a MapReduce job.
+#
+# The user should not need to modify this script. All user-defined
+# parameters can be set in 'config.sh'.
+#
+# Author: Herodotos Herodotou
+# Date:   June 30, 2011
+###################################################################
+
+
+# if no args specified, show usage
+if [ $# -lt 2 ]; then
+  echo "Hadoop usage:"
+  echo "  $0 hadoop mode job_id [output_file]"
+  echo ""
+  if [ "$1" == "help" ]; then
+    echo "  'mode' values and descriptions:"
+    echo "    list_all     List all available jobs"
+    echo "    list_stats   List stats for all available jobs"
+    echo "    details      Display the details of a job"
+    echo "    cluster      Display the cluster information"
+    echo "    timeline     Generate timeline of tasks"
+    echo "    mappers      Display mappers information of a job"
+    echo "    reducers     Display reducers information of a job"
+    echo "    profile      Display the profile of a job"
+    echo "    profile_xml  Display the profile of a job in XML format"
+    echo "    transfers_all Display all data transfers of a job"
+    echo "    transfers_map Display aggregated data transfers from maps"
+    echo "    transfers_red Display aggregated data transfers to reducers"
+    echo ""
+    echo "  'job_id' is the job id of interest"
+    echo "           it is NOT required for modes 'list_all' and 'list_stats'"
+    echo ""
+    echo "  'output_file' is an optional file to store the output"
+    echo ""
+  else
+    echo "  mode = list_all|list_stats|details|cluster|timeline|mappers|reducers"
+    echo "         |profile|profile_xml|transfers_all|transfers_map|transfers_red"
+    echo ""
+  fi
+  echo "Detailed usage instructions:"
+  echo "  $0 help"
+  echo ""
+  echo "  Global parameters are set in bin/config.sh"
+  echo ""
+  exit 1
+fi
+
+# Get and validate the input parameters
+EXEC=$1
+if [ "$EXEC" != "hadoop" ]; then
+  echo "ERROR: First argument must be 'hadoop' not $EXEC"
+  echo ""
+  exit -1
+fi
+
+MODE=$2
+if [ "$MODE" != "list_all" ] && 
+   [ "$MODE" != "list_stats" ] && 
+   [ "$MODE" != "details" ] && 
+   [ "$MODE" != "cluster" ] && 
+   [ "$MODE" != "timeline" ] && 
+   [ "$MODE" != "mappers" ] && 
+   [ "$MODE" != "reducers" ] && 
+   [ "$MODE" != "transfers_all" ] && 
+   [ "$MODE" != "transfers_map" ] && 
+   [ "$MODE" != "transfers_red" ] && 
+   [ "$MODE" != "profile" ] && 
+   [ "$MODE" != "profile_xml" ]; then
+  echo "ERROR: Unsupported mode: $MODE"
+  echo ""
+  exit -1
+fi
+
+if [ "$MODE" = "list_all" ] || 
+   [ "$MODE" = "list_stats" ]; then
+  OUTPUT=$3
+fi
+
+if [ "$MODE" != "list_all" ] && 
+   [ "$MODE" != "list_stats" ]; then
+  JOB_OR_WORKFLOW=$3
+  OUTPUT=$4
+  
+  if [ "$JOB_OR_WORKFLOW" = "" ] && [ "$EXEC" = "hadoop" ]; then
+    echo "ERROR: The job id is required"
+    echo "Usage: $0 hadoop mode job_id [output_file]"
+    echo ""
+    exit -1
+  fi
+fi
+
+
+# Perform common tasks like load configurations and initializations
+bin=`dirname "$0"`
+. "$bin"/common.sh
+
+if test ! -e $PROFILER_OUTPUT_DIR; then
+   echo "ERROR: The directory '$PROFILER_OUTPUT_DIR' does not exist."
+   exit -1
+fi
+
+# Get the profiler jar
+if [ "$EXEC" = "hadoop" ]; then
+   JAR=`ls $BASE_DIR/starfish-*-profiler.jar`
+fi
+
+# Build the parameters
+PARAMS="-mode $MODE -results ${PROFILER_OUTPUT_DIR}"
+
+if [ "$MODE" != "list_all" ] && 
+   [ "$MODE" != "list_stats" ]; then
+   if [ "$EXEC" = "hadoop" ]; then
+      PARAMS="$PARAMS -job $JOB_OR_WORKFLOW"
+   fi
+fi
+
+if [ "$OUTPUT" != "" ]; then
+  PARAMS="$PARAMS -output $OUTPUT"
+fi
+
+
+# Run the command
+${HADOOP_HOME}/bin/hadoop jar $JAR $PARAMS
+

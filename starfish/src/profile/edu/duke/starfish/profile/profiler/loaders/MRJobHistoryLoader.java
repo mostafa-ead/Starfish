@@ -37,6 +37,8 @@ import edu.duke.starfish.profile.profileinfo.execution.mrtasks.MRMapInfo;
 import edu.duke.starfish.profile.profileinfo.execution.mrtasks.MRReduceInfo;
 import edu.duke.starfish.profile.profileinfo.execution.mrtasks.MRSetupInfo;
 import edu.duke.starfish.profile.profileinfo.execution.mrtasks.MRTaskInfo;
+import edu.duke.starfish.profile.profileinfo.execution.profile.MRMapProfile;
+import edu.duke.starfish.profile.profileinfo.execution.profile.MRReduceProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRTaskProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCounter;
 import edu.duke.starfish.profile.profileinfo.setup.JobTrackerInfo;
@@ -70,6 +72,7 @@ public class MRJobHistoryLoader {
 	// CONSTANTS
 	private static final String TASK_COUNTER_GROUP = "org.apache.hadoop.mapred.Task$Counter";
 	private static final String FILE_COUNTER_GROUP = "FileSystemCounters";
+	private static final String MULTI_STORE_COUNTER_GROUP = "MultiStoreCounters";
 	private static final String MAP_TASKS_MAX = "mapred.tasktracker.map.tasks.maximum";
 	private static final String RED_TASKS_MAX = "mapred.tasktracker.reduce.tasks.maximum";
 	private static final String JOB_TRACKER = "mapred.job.tracker";
@@ -86,6 +89,8 @@ public class MRJobHistoryLoader {
 	private static final String SLASHES = "//";
 	private static final char COLON = ':';
 	private static final char EQUALS = '=';
+	private static final char ESCAPE_CHAR = '\\';
+	private static final char[] CHARS_TO_ESCAPE = new char[] { '"', '=', '.' };
 
 	private static final Pattern pattern = Pattern
 			.compile("(\\w+)=\"[^\"\\\\]*(?:\\\\.[^\"\\\\]*)*\"");
@@ -172,10 +177,10 @@ public class MRJobHistoryLoader {
 	 * @return the hadoop configuration
 	 */
 	public Configuration getHadoopConfiguration() {
-		if (detailedDataLoaded == false) {
-			if (!loadJobAndClusterData(this.cluster, this.mrJobInfo)) {
-				return null;
-			}
+		if (hadoopConf == null) {
+			// Load the configuration file
+			hadoopConf = new Configuration();
+			hadoopConf.addResource(new Path(jobConfFile));
 		}
 
 		return hadoopConf;
@@ -285,6 +290,8 @@ public class MRJobHistoryLoader {
 								StringUtils.ESCAPE_CHAR, EQUALS);
 						String value = parts[1].substring(1,
 								parts[1].length() - 1);
+						value = StringUtils.unEscapeString(value, ESCAPE_CHAR,
+								CHARS_TO_ESCAPE);
 
 						setMRJobAttribute(mrJobInfo, Keys.valueOf(parts[0]),
 								value);
@@ -424,8 +431,8 @@ public class MRJobHistoryLoader {
 						.setEndTime(new Date(Long.parseLong(entry.getValue())));
 				break;
 			case TASK_STATUS:
-				mrTaskInfo.setStatus(MRExecutionStatus
-						.valueOf(entry.getValue()));
+				mrTaskInfo
+						.setStatus(MRExecutionStatus.valueOf(entry.getValue()));
 				break;
 			case ERROR:
 				mrTaskInfo.setErrorMsg(entry.getValue());
@@ -570,6 +577,16 @@ public class MRJobHistoryLoader {
 				}
 			}
 
+			// Set the MAP_OUTPUT_MATERIALIZED_BYTES counter
+			MRMapProfile mapProf = mrMapAttemptInfo.getProfile();
+			if (!mapProf
+					.containsCounter(MRCounter.MAP_OUTPUT_MATERIALIZED_BYTES)) {
+				mapProf.addCounter(
+						MRCounter.MAP_OUTPUT_MATERIALIZED_BYTES,
+						mapProf.getCounter(MRCounter.FILE_BYTES_WRITTEN, 0l)
+								- mapProf.getCounter(MRCounter.FILE_BYTES_READ,
+										0l));
+			}
 		}
 	}
 
@@ -745,16 +762,29 @@ public class MRJobHistoryLoader {
 				// Iterate over counters in group and add them to the attempt
 				for (Counter counter : group) {
 					try {
-						mrTaskProfile.addCounter(MRCounter.valueOf(counter
-								.getName()), counter.getValue());
-					} catch (Exception e) {
+						mrTaskProfile.addCounter(
+								MRCounter.valueOf(counter.getName()),
+								counter.getValue());
+					} catch (IllegalArgumentException e) {
 						System.err.println(e.getMessage());
-						e.printStackTrace();
 					}
 				}
 			}
 		}
 
+		// Special case: add the multi-store counters into the output counters
+		for (Group group : counters) {
+			if (group.getName().equalsIgnoreCase(MULTI_STORE_COUNTER_GROUP)) {
+				for (Counter counter : group) {
+					MRCounter outCounter = (mrTaskProfile instanceof MRReduceProfile) ? MRCounter.REDUCE_OUTPUT_RECORDS
+							: MRCounter.MAP_OUTPUT_RECORDS;
+
+					long redRecords = mrTaskProfile.getCounter(outCounter, 0l);
+					mrTaskProfile.addCounter(outCounter,
+							redRecords + counter.getValue());
+				}
+			}
+		}
 	}
 
 	/**

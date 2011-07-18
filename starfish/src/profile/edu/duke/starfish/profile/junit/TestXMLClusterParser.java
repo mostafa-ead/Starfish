@@ -8,7 +8,7 @@ import java.io.UnsupportedEncodingException;
 import org.junit.Test;
 
 import edu.duke.starfish.profile.profileinfo.ClusterConfiguration;
-import edu.duke.starfish.profile.profileinfo.utils.XMLClusterParser;
+import edu.duke.starfish.profile.utils.XMLClusterParser;
 
 import junit.framework.TestCase;
 

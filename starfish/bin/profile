@@ -16,23 +16,26 @@
 
 # if no args specified, show usage
 if [ $# = 0 ]; then
-  echo "Usage: $0 jar jarFile [mainClass] [genericOptions] args..."
+  echo "Hadoop Usage:"
+  echo "    $0 hadoop jar jarFile [mainClass] [genericOptions] args..."
   echo ""
   echo "Profile-related parameters are set in bin/config.sh"
   echo ""
   exit 1
 fi
 
+# Get the execution system
+SYSTEM=$1
+shift
+if [ "$SYSTEM" != "hadoop" ] ; then
+   echo "ERROR: The first argument must be 'hadoop'"
+   exit -1
+fi
+
 # Perform common tasks like Load configurations and initializations
 bin=`dirname "$0"`
 . "$bin"/common.sh
 
-
-# Default output directory is the working directory
-if [ "$PROFILER_OUTPUT_DIR" = "" ]; then
-  PROFILER_OUTPUT_DIR=$CURRENT_DIR
-fi
-HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.profiler.output.dir=${PROFILER_OUTPUT_DIR}"
 
 # Flag for retaining the task profiles
 if [ "$RETAIN_TASK_PROFILES" = "" ]; then
@@ -59,9 +62,6 @@ fi
 HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.profiler.sampling.fraction=${SAMPLING_FRACTION}"
 
 
-# Specify the Java agent
-HADOOP_OPTS="${HADOOP_OPTS} -javaagent:${MASTER_BTRACE_DIR}/btrace-agent.jar=dumpClasses=false,debug=false,unsafe=true,probeDescPath=.,noServer=true,stdout,script=${MASTER_BTRACE_DIR}/BTraceProfiler.class"
-
 # Add the profiler jar to the classpath
 HADOOP_CLASSPATH_OLD=$HADOOP_CLASSPATH
 HADOOP_CLASSPATH=`ls $BASE_DIR/starfish-*-profiler.jar`
@@ -87,10 +87,13 @@ do
 done
 IFS="$OLD_IFS"
 
-# Export the required parameters
+# Specify the Java agent
+HADOOP_OPTS="${HADOOP_OPTS} -javaagent:${MASTER_BTRACE_DIR}/btrace-agent.jar=dumpClasses=false,debug=false,unsafe=true,probeDescPath=.,noServer=true,stdout,script=${MASTER_BTRACE_DIR}/BTraceProfiler.class"
+
+# Export the required hadoop parameters
 export HADOOP_OPTS
 export HADOOP_CLASSPATH
 
-# Run the command
+# Execute the hadoop command
 ${HADOOP_HOME}/bin/hadoop "$@"
 

@@ -1,6 +1,6 @@
 package edu.duke.starfish.whatif.oracle;
 
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.*;
+import static edu.duke.starfish.profile.utils.Constants.*;
 
 import org.apache.hadoop.conf.Configuration;
 
@@ -9,6 +9,7 @@ import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCostFacto
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCounter;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRStatistics;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRTaskPhase;
+import edu.duke.starfish.profile.utils.ProfileUtils;
 import edu.duke.starfish.whatif.data.MapInputSpecs;
 
 /**
@@ -102,8 +103,8 @@ public class MapProfileOracle extends TaskProfileOracle {
 		this.conf = conf;
 		this.inputSpecs = inputSpecs;
 
-		this.virtualProf = new MRMapProfile(getVirtualTaskId(sourceProf
-				.getTaskId()));
+		this.virtualProf = new MRMapProfile(
+				getVirtualTaskId(sourceProf.getTaskId()));
 		virtualProf.setNumTasks(inputSpecs.getNumSplits());
 		virtualProf.setInputIndex(inputSpecs.getInputIndex());
 
@@ -134,7 +135,8 @@ public class MapProfileOracle extends TaskProfileOracle {
 				&& conf.getBoolean(STARFISH_USE_COMBINER, true);
 		useInputCompr = inputSpecs.isCompressed();
 		useIntermCompr = conf.getBoolean(MR_COMPRESS_MAP_OUT, false);
-		useOutputCompr = isMapOnly && conf.getBoolean(MR_COMPRESS_OUT, false);
+		useOutputCompr = isMapOnly
+				&& ProfileUtils.isMROutputCompressionOn(conf);
 		sortFactor = conf.getInt(MR_SORT_FACTOR, DEF_SORT_FACTOR);
 
 		numMergedRecords = 0l;
@@ -169,8 +171,9 @@ public class MapProfileOracle extends TaskProfileOracle {
 		// The following statistics remain the same
 		virtualProf.addStatistic(MRStatistics.INPUT_PAIR_WIDTH, sourceProf
 				.getStatistic(MRStatistics.INPUT_PAIR_WIDTH, DEF_PAIR_WIDTH));
-		virtualProf.addStatistic(MRStatistics.MAP_SIZE_SEL, sourceProf
-				.getStatistic(MRStatistics.MAP_SIZE_SEL, DEF_SEL_ONE));
+		virtualProf
+				.addStatistic(MRStatistics.MAP_SIZE_SEL, sourceProf
+						.getStatistic(MRStatistics.MAP_SIZE_SEL, DEF_SEL_ONE));
 		virtualProf.addStatistic(MRStatistics.MAP_PAIRS_SEL, sourceProf
 				.getStatistic(MRStatistics.MAP_PAIRS_SEL, DEF_SEL_ONE));
 
@@ -283,8 +286,8 @@ public class MapProfileOracle extends TaskProfileOracle {
 				MRCounter.MAP_MAX_UNIQUE_GROUPS, DEF_MAX_UNIQUE_GROUPS);
 		double maxUniqueGroups = mapOutRecs * maxSourceUniqueGroups
 				/ sourceProf.getCounter(MRCounter.MAP_OUTPUT_RECORDS, 1l);
-		virtualProf.addCounter(MRCounter.MAP_MAX_UNIQUE_GROUPS, (long) Math
-				.ceil(maxUniqueGroups));
+		virtualProf.addCounter(MRCounter.MAP_MAX_UNIQUE_GROUPS,
+				(long) Math.ceil(maxUniqueGroups));
 
 		// Calculate the number of bytes written on HDFS
 		if (isMapOnly) {
@@ -314,8 +317,7 @@ public class MapProfileOracle extends TaskProfileOracle {
 				.floor(((conf.getInt(MR_SORT_MB, DEF_SORT_MB) * 1024 * 1024)
 						* (1 - conf.getFloat(MR_SORT_REC_PERC,
 								DEF_SORT_REC_PERC)) * conf.getFloat(
-						MR_SPILL_PERC, DEF_SPILL_PERC))
-						/ mapOutRecWidth);
+						MR_SPILL_PERC, DEF_SPILL_PERC)) / mapOutRecWidth);
 		long maxAccPairs = (long) Math.floor(((conf.getInt(MR_SORT_MB,
 				DEF_SORT_MB) * 1024 * 1024) * conf.getFloat(MR_SORT_REC_PERC,
 				DEF_SORT_REC_PERC))
@@ -374,6 +376,8 @@ public class MapProfileOracle extends TaskProfileOracle {
 		// Calculate the number of bytes spilled during the spill phase
 		long bytesWritten = (long) Math.round(numSpills * spillFileSize);
 		virtualProf.addCounter(MRCounter.FILE_BYTES_WRITTEN, bytesWritten);
+		virtualProf.addCounter(MRCounter.MAP_OUTPUT_MATERIALIZED_BYTES,
+				bytesWritten);
 	}
 
 	/**
@@ -484,6 +488,11 @@ public class MapProfileOracle extends TaskProfileOracle {
 			bytesWritten += numSpills * numBytesPerSpill;
 		}
 		virtualProf.addCounter(MRCounter.FILE_BYTES_WRITTEN, bytesWritten);
+
+		// Calculate the number of bytes materialized at the map task
+		virtualProf.addCounter(MRCounter.MAP_OUTPUT_MATERIALIZED_BYTES,
+				virtualProf.getCounter(MRCounter.FILE_BYTES_WRITTEN)
+						- virtualProf.getCounter(MRCounter.FILE_BYTES_READ));
 	}
 
 	/**
@@ -499,42 +508,49 @@ public class MapProfileOracle extends TaskProfileOracle {
 		// Set up the simulation
 		MergeSimulator merger = new MergeSimulator();
 		merger.addSegments(virtualProf.getCounter(MRCounter.MAP_NUM_SPILLS),
-				virtualProf.getCounter(MRCounter.MAP_SPILL_SIZE), virtualProf
-						.getCounter(MRCounter.MAP_RECORDS_PER_SPILL));
+				virtualProf.getCounter(MRCounter.MAP_SPILL_SIZE),
+				virtualProf.getCounter(MRCounter.MAP_RECORDS_PER_SPILL));
 
 		// Enable the combiner, if any
 		if (useCombiner) {
-			merger.enableCombiner(conf.getInt(MR_NUM_SPILLS_COMBINE,
-					DEF_NUM_SPILLS_FOR_COMB), adjCombineSizeSel,
-					adjCombinePairsSel);
+			merger.enableCombiner(
+					conf.getInt(MR_NUM_SPILLS_COMBINE, DEF_NUM_SPILLS_FOR_COMB),
+					adjCombineSizeSel, adjCombinePairsSel);
 		}
 
 		// Perform the simulation
 		merger.simulateMerge(sortFactor);
 
 		// Set the counters
-		virtualProf.addCounter(MRCounter.MAP_NUM_SPILL_MERGES, merger
-				.getNumMergePasses());
-		virtualProf.addCounter(MRCounter.SPILLED_RECORDS, virtualProf
-				.getCounter(MRCounter.SPILLED_RECORDS, 0l)
-				+ merger.getSpilledRecords());
-		virtualProf.addCounter(MRCounter.FILE_BYTES_READ, virtualProf
-				.getCounter(MRCounter.FILE_BYTES_READ, 0l)
-				+ merger.getBytesRead());
-		virtualProf.addCounter(MRCounter.FILE_BYTES_WRITTEN, virtualProf
-				.getCounter(MRCounter.FILE_BYTES_WRITTEN, 0l)
-				+ merger.getBytesWritten());
+		virtualProf.addCounter(MRCounter.MAP_NUM_SPILL_MERGES,
+				merger.getNumMergePasses());
+		virtualProf.addCounter(
+				MRCounter.SPILLED_RECORDS,
+				virtualProf.getCounter(MRCounter.SPILLED_RECORDS, 0l)
+						+ merger.getSpilledRecords());
+		virtualProf.addCounter(
+				MRCounter.FILE_BYTES_READ,
+				virtualProf.getCounter(MRCounter.FILE_BYTES_READ, 0l)
+						+ merger.getBytesRead());
+		virtualProf.addCounter(MRCounter.FILE_BYTES_WRITTEN,
+				virtualProf.getCounter(MRCounter.FILE_BYTES_WRITTEN, 0l)
+						+ merger.getBytesWritten());
 		numMergedRecords = merger.getMergedRecords();
 
 		if (useCombiner) {
 			numCombineInMergeRecs = merger.getCombineInRecs();
-			virtualProf.addCounter(MRCounter.COMBINE_INPUT_RECORDS, virtualProf
-					.getCounter(MRCounter.COMBINE_INPUT_RECORDS)
-					+ merger.getCombineInRecs());
+			virtualProf.addCounter(MRCounter.COMBINE_INPUT_RECORDS,
+					virtualProf.getCounter(MRCounter.COMBINE_INPUT_RECORDS)
+							+ merger.getCombineInRecs());
 			virtualProf.addCounter(MRCounter.COMBINE_OUTPUT_RECORDS,
 					virtualProf.getCounter(MRCounter.COMBINE_OUTPUT_RECORDS)
 							+ merger.getCombineOutRecs());
 		}
+
+		// Calculate the number of bytes materialized at the map task
+		virtualProf.addCounter(MRCounter.MAP_OUTPUT_MATERIALIZED_BYTES,
+				virtualProf.getCounter(MRCounter.FILE_BYTES_WRITTEN)
+						- virtualProf.getCounter(MRCounter.FILE_BYTES_READ));
 	}
 
 	/**
@@ -612,8 +628,8 @@ public class MapProfileOracle extends TaskProfileOracle {
 	private void calcVirtualMapTimingsReadMapPhase() {
 
 		// Calculate and set SETUP
-		virtualProf.addTiming(MRTaskPhase.SETUP, sourceProf.getTiming(
-				MRTaskPhase.SETUP, 0d));
+		virtualProf.addTiming(MRTaskPhase.SETUP,
+				sourceProf.getTiming(MRTaskPhase.SETUP, 0d));
 
 		// Calculate and set READ
 		double bytesRead = virtualProf.getCounter(MRCounter.HDFS_BYTES_READ);
@@ -632,8 +648,8 @@ public class MapProfileOracle extends TaskProfileOracle {
 		virtualProf.addTiming(MRTaskPhase.MAP, mapCPU / NS_PER_MS);
 
 		// Calculate and set CLEANUP
-		virtualProf.addTiming(MRTaskPhase.CLEANUP, sourceProf.getTiming(
-				MRTaskPhase.CLEANUP, 0d));
+		virtualProf.addTiming(MRTaskPhase.CLEANUP,
+				sourceProf.getTiming(MRTaskPhase.CLEANUP, 0d));
 
 		if (isMapOnly) {
 			// Calculate and set WRITE

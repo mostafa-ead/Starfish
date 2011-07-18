@@ -1,8 +1,9 @@
 package edu.duke.starfish.whatif.scheduler;
 
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.MR_RED_SLOWSTART_MAPS;
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.DEF_RED_SLOWSTART_MAPS;
+import static edu.duke.starfish.profile.utils.Constants.DEF_RED_SLOWSTART_MAPS;
+import static edu.duke.starfish.profile.utils.Constants.MR_RED_SLOWSTART_MAPS;
 
+import java.util.Date;
 import java.util.PriorityQueue;
 
 import org.apache.hadoop.conf.Configuration;
@@ -23,6 +24,7 @@ import edu.duke.starfish.profile.profileinfo.setup.TaskTrackerInfo;
  * 
  * @author hero
  */
+@Deprecated
 public class BasicFIFOSchedulerForOptimizer implements IWhatIfScheduler {
 
 	/* ***************************************************************
@@ -31,11 +33,11 @@ public class BasicFIFOSchedulerForOptimizer implements IWhatIfScheduler {
 	 */
 
 	// Simulation setup
-	private ClusterConfiguration cluster;
 	private PriorityQueue<TaskSlot> mapSlots;
 	private PriorityQueue<TaskSlot> redSlots;
 
 	private boolean ignoreReducers;
+	private ClusterConfiguration cluster;
 
 	// Constants
 	private static final double HEARTBEAT_DELAY = 3000d;
@@ -43,11 +45,26 @@ public class BasicFIFOSchedulerForOptimizer implements IWhatIfScheduler {
 	/**
 	 * Default Constructor
 	 */
-	public BasicFIFOSchedulerForOptimizer() {
-		this.cluster = null;
-		mapSlots = null;
-		redSlots = null;
+	public BasicFIFOSchedulerForOptimizer(ClusterConfiguration cluster) {
+
+		// Initialize the task slots
+		this.mapSlots = new PriorityQueue<TaskSlot>();
+		this.redSlots = new PriorityQueue<TaskSlot>();
+
+		for (TaskTrackerInfo taskTracker : cluster.getAllTaskTrackersInfos()) {
+			// Initialize the map slots
+			int numMapSlots = taskTracker.getNumMapSlots();
+			for (int i = 0; i < numMapSlots; ++i)
+				mapSlots.add(new TaskSlot());
+
+			// Initialize the reduce slots
+			int numRedSlots = taskTracker.getNumReduceSlots();
+			for (int i = 0; i < numRedSlots; ++i)
+				redSlots.add(new TaskSlot());
+		}
+
 		this.ignoreReducers = false;
+		this.cluster = cluster;
 	}
 
 	/* ***************************************************************
@@ -56,26 +73,55 @@ public class BasicFIFOSchedulerForOptimizer implements IWhatIfScheduler {
 	 */
 
 	/**
-	 * @see edu.duke.starfish.whatif.scheduler.IWhatIfScheduler#scheduleJobGetJobInfo(ClusterConfiguration,
-	 *      MRJobProfile, Configuration)
+	 * @see IWhatIfScheduler#checkpoint()
 	 */
 	@Override
-	public MRJobInfo scheduleJobGetJobInfo(ClusterConfiguration cluster,
+	public void checkpoint() {
+		// Checkpoint all slots
+		for (TaskSlot slot : mapSlots)
+			slot.checkpoint();
+		for (TaskSlot slot : redSlots)
+			slot.checkpoint();
+	}
+
+	/**
+	 * @see IWhatIfScheduler#reset()
+	 */
+	@Override
+	public void reset() {
+		// Reset all slots
+		for (TaskSlot slot : mapSlots)
+			slot.reset();
+		for (TaskSlot slot : redSlots)
+			slot.reset();
+	}
+
+	/**
+	 * @see IWhatIfScheduler#getCluster()
+	 */
+	@Override
+	public ClusterConfiguration getCluster() {
+		return cluster;
+	}
+
+	/**
+	 * @see IWhatIfScheduler#scheduleJobGetJobInfo(Date, MRJobProfile,
+	 *      Configuration)
+	 */
+	@Override
+	public MRJobInfo scheduleJobGetJobInfo(Date submissionTime,
 			MRJobProfile jobProfile, Configuration conf) {
 		throw new RuntimeException("ERROR: The BasicFIFOSchedulerForOptimizer "
 				+ "does not support the method scheduleJobGetJobInfo");
 	}
 
 	/**
-	 * @see edu.duke.starfish.whatif.scheduler.IWhatIfScheduler#scheduleJobGetTime(ClusterConfiguration,
-	 *      MRJobProfile, Configuration)
+	 * @see IWhatIfScheduler#scheduleJobGetTime(Date, MRJobProfile,
+	 *      Configuration)
 	 */
 	@Override
-	public double scheduleJobGetTime(ClusterConfiguration cluster,
+	public double scheduleJobGetTime(Date submissionTime,
 			MRJobProfile jobProfile, Configuration conf) {
-
-		// Initialize the task slots
-		initializeTaskSlots(cluster);
 
 		// Calculate the number of completed maps before reducers start
 		int numMapTasks = jobProfile.getCounter(MRCounter.MAP_TASKS).intValue();
@@ -137,9 +183,8 @@ public class BasicFIFOSchedulerForOptimizer implements IWhatIfScheduler {
 			TaskSlot redSlot = null;
 			for (int i = 0; i < numRedTasks; ++i) {
 				redSlot = redSlots.poll();
-				redSlot
-						.addExecTime((redSlot.getNumWaves() == 0) ? redExecTimeFirstWave
-								: redExecTimeOtherWave);
+				redSlot.addExecTime((redSlot.getNumWaves() == 0) ? redExecTimeFirstWave
+						: redExecTimeOtherWave);
 				redSlots.add(redSlot);
 
 				// Keep track of the overall job completion time
@@ -153,8 +198,7 @@ public class BasicFIFOSchedulerForOptimizer implements IWhatIfScheduler {
 	}
 
 	/**
-	 * @param ignoreReducers
-	 *            set ignore reducers flag
+	 * @see IWhatIfScheduler#setIgnoreReducers(boolean)
 	 */
 	@Override
 	public void setIgnoreReducers(boolean ignoreReducers) {
@@ -165,42 +209,6 @@ public class BasicFIFOSchedulerForOptimizer implements IWhatIfScheduler {
 	 * PRIVATE METHODS
 	 * ***************************************************************
 	 */
-
-	/**
-	 * Initialize the task slots
-	 * 
-	 * @param cluster
-	 *            the cluster setup
-	 */
-	private void initializeTaskSlots(ClusterConfiguration cluster) {
-
-		// Check if task slots are initialized already
-		if (this.cluster == cluster) {
-			for (TaskSlot slot : mapSlots)
-				slot.initializeSlot();
-			for (TaskSlot slot : redSlots)
-				slot.initializeSlot();
-
-			return;
-		}
-
-		// Initialize the task slots
-		this.cluster = cluster;
-		this.mapSlots = new PriorityQueue<TaskSlot>();
-		this.redSlots = new PriorityQueue<TaskSlot>();
-
-		for (TaskTrackerInfo taskTracker : cluster.getAllTaskTrackersInfos()) {
-			// Initialize the map slots
-			int numMapSlots = taskTracker.getNumMapSlots();
-			for (int i = 0; i < numMapSlots; ++i)
-				mapSlots.add(new TaskSlot());
-
-			// Initialize the reduce slots
-			int numRedSlots = taskTracker.getNumReduceSlots();
-			for (int i = 0; i < numRedSlots; ++i)
-				redSlots.add(new TaskSlot());
-		}
-	}
 
 	/**
 	 * Simulate the execution of a map task and return the total execution time
@@ -295,9 +303,17 @@ public class BasicFIFOSchedulerForOptimizer implements IWhatIfScheduler {
 		}
 
 		/**
-		 * Initialize the task slot
+		 * Checkpoint the task slot (NOT supported)
 		 */
-		public void initializeSlot() {
+		public void checkpoint() {
+			this.numWaves = 0;
+			this.execTime = 0l;
+		}
+
+		/**
+		 * Reset the task slot
+		 */
+		public void reset() {
 			this.numWaves = 0;
 			this.execTime = 0l;
 		}

@@ -34,7 +34,7 @@ public class MRJobInfo extends JobInfo {
 
 	private List<DataTransfer> dataTransfers; // The data transfers
 	private MRJobProfile profile; // The job profile
-	
+
 	private MRJobProfile adjProfile; // The adjusted job profile
 	private boolean hasAdjProfile; // Whether an adjusted profile exists
 
@@ -133,10 +133,10 @@ public class MRJobInfo extends JobInfo {
 		for (DataTransfer transfer : other.dataTransfers)
 			addDataTransfer(new DataTransfer(transfer));
 
-		profile = (other.profile == null) ? null
-				: new MRJobProfile(other.profile);
-		adjProfile = (other.adjProfile == null) ? null
-				: new MRJobProfile(other.adjProfile);
+		profile = (other.profile == null) ? null : new MRJobProfile(
+				other.profile);
+		adjProfile = (other.adjProfile == null) ? null : new MRJobProfile(
+				other.adjProfile);
 		hasAdjProfile = other.hasAdjProfile;
 
 		sucMapAttempts = null;
@@ -393,8 +393,8 @@ public class MRJobInfo extends JobInfo {
 			MRMapAttemptInfo mrMapAttempt) {
 
 		// Find the matching transfers from the map attempt
-		List<DataTransfer> result = new ArrayList<DataTransfer>(reduceTasks
-				.size());
+		List<DataTransfer> result = new ArrayList<DataTransfer>(
+				reduceTasks.size());
 		for (DataTransfer dataTransfer : dataTransfers) {
 			if (dataTransfer.getSource().equals(mrMapAttempt)) {
 				result.add(dataTransfer);
@@ -519,6 +519,15 @@ public class MRJobInfo extends JobInfo {
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * Check if the job is map-only
+	 * 
+	 * @return true if the job is map-only
+	 */
+	public boolean isMapOnly() {
+		return reduceTasks.isEmpty();
 	}
 
 	/* ***************************************************************

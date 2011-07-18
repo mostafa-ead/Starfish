@@ -1,6 +1,6 @@
 package edu.duke.starfish.profile.sampling;
 
-import static edu.duke.starfish.profile.profileinfo.utils.Constants.*;
+import static edu.duke.starfish.profile.utils.Constants.*;
 
 import java.io.IOException;
 import java.text.NumberFormat;

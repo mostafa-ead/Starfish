@@ -13,7 +13,6 @@ import edu.duke.starfish.jobopt.space.ParameterSpace;
 import edu.duke.starfish.jobopt.space.ParameterSpacePoint;
 import edu.duke.starfish.profile.profileinfo.ClusterConfiguration;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
-import edu.duke.starfish.whatif.WhatIfEngine;
 import edu.duke.starfish.whatif.data.DataSetModel;
 import edu.duke.starfish.whatif.oracle.JobProfileOracle;
 import edu.duke.starfish.whatif.scheduler.IWhatIfScheduler;
@@ -46,38 +45,35 @@ public class SmartEnumJobOptimizer extends FullEnumJobOptimizer {
 	 *            the job profile oracle
 	 * @param dataModel
 	 *            the data set model
-	 * @param cluster
-	 *            the cluster setup
 	 * @param scheduler
 	 *            the scheduler
+	 * @param cluster
+	 *            the cluster setup
+	 * @param conf
+	 *            the current configuration settings
 	 */
 	public SmartEnumJobOptimizer(JobProfileOracle jobOracle,
-			DataSetModel dataModel, ClusterConfiguration cluster,
-			IWhatIfScheduler scheduler) {
-		super(jobOracle, dataModel, cluster, scheduler);
+			DataSetModel dataModel, IWhatIfScheduler scheduler,
+			ClusterConfiguration cluster, Configuration conf) {
+		super(jobOracle, dataModel, scheduler, cluster, conf);
 	}
 
 	/**
-	 * @see edu.duke.starfish.jobopt.optimizer.JobOptimizer#findBestConfiguration(Configuration)
+	 * @see edu.duke.starfish.jobopt.optimizer.JobOptimizer#optimizeInternal()
 	 */
 	@Override
-	public Configuration findBestConfiguration(Configuration jobConf,
-			boolean fullConf) {
-
-		// Initialize the What-if Engine
-		Configuration conf = new Configuration(jobConf);
-		WhatIfEngine whatifEngine = new WhatIfEngine(jobOracle, dataModel,
-				scheduler, cluster, conf);
-		MRJobProfile virtualProf = jobOracle.whatif(conf, dataModel);
+	protected ParameterSpacePoint optimizeInternal() {
 
 		// Initialize the parameter space for the map tasks
-		ParameterSpace mapSpace = ParamSpaceUtils.getParamSpaceForMappers(conf);
-		ParamSpaceUtils.adjustParameterDescriptors(mapSpace, cluster, conf,
+		MRJobProfile virtualProf = jobOracle.whatif(currConf, dataModel);
+		ParameterSpace mapSpace = ParamSpaceUtils
+				.getParamSpaceForMappers(currConf);
+		ParamSpaceUtils.adjustParameterDescriptors(mapSpace, cluster, currConf,
 				virtualProf);
 
 		// Generate the grid of points
-		boolean useRandom = conf.getBoolean(USE_RANDOM_VALUES, false);
-		int numValuesPerParam = conf.getInt(NUM_VALUES_PER_PARAM, 2);
+		boolean useRandom = currConf.getBoolean(USE_RANDOM_VALUES, false);
+		int numValuesPerParam = currConf.getInt(NUM_VALUES_PER_PARAM, 2);
 		List<ParameterSpacePoint> mapPoints = mapSpace.getSpacePointGrid(
 				useRandom, numValuesPerParam);
 		LOG.debug("Number of parameters: " + mapSpace.getNumParameters());
@@ -87,13 +83,13 @@ public class SmartEnumJobOptimizer extends FullEnumJobOptimizer {
 		jobOracle.setIgnoreReducers(true);
 		scheduler.setIgnoreReducers(true);
 		ParameterSpacePoint optMapPoint = findBestParameterSpacePoint(
-				whatifEngine, mapPoints, conf);
-		optMapPoint.populateConfiguration(conf);
+				mapPoints, currConf);
+		optMapPoint.populateConfiguration(currConf);
 
 		// Initialize the parameter space for the reduce tasks
 		ParameterSpace redSpace = ParamSpaceUtils
-				.getParamSpaceForReducers(conf);
-		ParamSpaceUtils.adjustParameterDescriptors(redSpace, cluster, conf,
+				.getParamSpaceForReducers(currConf);
+		ParamSpaceUtils.adjustParameterDescriptors(redSpace, cluster, currConf,
 				virtualProf);
 
 		if (redSpace.containsParamDescriptor(HadoopParameter.RED_TASKS)) {
@@ -113,22 +109,11 @@ public class SmartEnumJobOptimizer extends FullEnumJobOptimizer {
 		jobOracle.setIgnoreReducers(false);
 		scheduler.setIgnoreReducers(false);
 		ParameterSpacePoint optRedPoint = findBestParameterSpacePoint(
-				whatifEngine, redPoints, conf);
+				redPoints, currConf);
 
-		// Create the best MR job profile
-		optMapPoint.populateConfiguration(conf);
-		optRedPoint.populateConfiguration(conf);
-		bestMRJobProfile = jobOracle.whatif(conf, dataModel);
-		bestRunningTime = whatifEngine.whatIfJobConfGetTime(conf);
-
-		// Return the best configuration
-		if (!fullConf) {
-			conf = new Configuration(false);
-			optMapPoint.populateConfiguration(conf);
-			optRedPoint.populateConfiguration(conf);
-		}
-		bestConf = conf;
-		return conf;
+		// Add the best reduce param values and return
+		optMapPoint.addParamValues(optRedPoint);
+		return optMapPoint;
 	}
 
 }
