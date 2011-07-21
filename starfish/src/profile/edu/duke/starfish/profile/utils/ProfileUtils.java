@@ -53,19 +53,21 @@ public class ProfileUtils {
 	/**
 	 * This functions expects as input two profiles for the same MapReduce job;
 	 * the first job should be profiled without compression enabled, and the
-	 * second with compression enabled. This method will then create a new job
-	 * profile that will contain the correct IO and compression costs.
+	 * second with compression enabled.
+	 * 
+	 * This method will then create two new job profiles that will contain the
+	 * correct IO and compression costs and statistics; the first profile will
+	 * correspond to the input profile without compression and the second to the
+	 * input profile with compression
 	 * 
 	 * @param profNoCompr
 	 *            a profile obtained without compression
 	 * @param profWithCompr
 	 *            a profile obtained with compression
-	 * @return a job profile
+	 * @return two job profiles
 	 */
-	public static MRJobProfile adjustProfilesForCompression(
+	public static MRJobProfile[] adjustProfilesForCompression(
 			MRJobProfile profNoCompr, MRJobProfile profWithCompr) {
-
-		MRJobProfile profResult = new MRJobProfile(profNoCompr);
 
 		// Make sure we have the same number of map profiles
 		List<MRMapProfile> mapProfsNoCompr = profNoCompr.getMapProfiles();
@@ -74,12 +76,26 @@ public class ProfileUtils {
 			throw new RuntimeException(
 					"ERROR: Expected the same number of map profiles");
 
+		// Create the two adjusted profiles
+		MRJobProfile adjProfNoCompr = new MRJobProfile(profNoCompr);
+		MRJobProfile adjProfWithCompr = new MRJobProfile(profWithCompr);
+
 		// Adjust the map profiles
-		List<MRMapProfile> mapProfsResult = profResult.getMapProfiles();
-		int numMapProfs = mapProfsResult.size();
+		int numMapProfs = mapProfsNoCompr.size();
 		for (int i = 0; i < numMapProfs; ++i) {
+			MRMapProfile mapProf = new MRMapProfile("");
 			adjustMapProfilesForCompression(mapProfsNoCompr.get(i),
-					mapProfsWithCompr.get(i), mapProfsResult.get(i));
+					mapProfsWithCompr.get(i), mapProf);
+
+			// Set the adjusted cost factors and statistics
+			adjProfNoCompr.getMapProfiles().get(i)
+					.addCostFactors(mapProf.getCostFactors());
+			adjProfWithCompr.getMapProfiles().get(i)
+					.addCostFactors(mapProf.getCostFactors());
+			adjProfNoCompr.getMapProfiles().get(i)
+					.addStatistics(mapProf.getStatistics());
+			adjProfWithCompr.getMapProfiles().get(i)
+					.addStatistics(mapProf.getStatistics());
 		}
 
 		// Make sure we have the same number of reduce profiles
@@ -91,15 +107,28 @@ public class ProfileUtils {
 					"ERROR: Expected the same number of reduce profiles");
 
 		// Adjust the reduce profiles
-		List<MRReduceProfile> redProfsResult = profResult.getReduceProfiles();
-		int numRedProfs = redProfsResult.size();
+		int numRedProfs = redProfsNoCompr.size();
 		for (int i = 0; i < numRedProfs; ++i) {
+			MRReduceProfile redProf = new MRReduceProfile("");
 			adjustReduceProfilesForCompression(redProfsNoCompr.get(i),
-					redProfsWithCompr.get(i), redProfsResult.get(i));
+					redProfsWithCompr.get(i), redProf);
+
+			// Set the adjusted cost factors and statistics
+			adjProfNoCompr.getReduceProfiles().get(i)
+					.addCostFactors(redProf.getCostFactors());
+			adjProfWithCompr.getReduceProfiles().get(i)
+					.addCostFactors(redProf.getCostFactors());
+			adjProfNoCompr.getReduceProfiles().get(i)
+					.addStatistics(redProf.getStatistics());
+			adjProfWithCompr.getReduceProfiles().get(i)
+					.addStatistics(redProf.getStatistics());
 		}
 
-		profResult.updateProfile();
-		return profResult;
+		adjProfNoCompr.updateProfile();
+		adjProfWithCompr.updateProfile();
+
+		MRJobProfile[] result = { adjProfNoCompr, adjProfWithCompr };
+		return result;
 	}
 
 	/**
@@ -210,7 +239,7 @@ public class ProfileUtils {
 		long comprSize = 0l;
 		long uncomprSize = 0l;
 		boolean isCompr = conf.getBoolean(Constants.MR_COMPRESS_MAP_OUT, false);
-		double comprRatio = job.getAdjProfile().getAvgReduceProfile()
+		double comprRatio = job.getProfile().getAvgReduceProfile()
 				.getStatistic(MRStatistics.INTERM_COMPRESS_RATIO, 1d);
 
 		// Create a new data transfer from each map to each reducer

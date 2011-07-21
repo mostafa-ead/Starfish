@@ -38,7 +38,7 @@ public class ParamSpaceUtils {
 
 	// Constants
 	private static final long MIN_SORT_MB = 20971520l;
-	private static final float MAX_MEM_RATIO = 0.75f;
+	private static final float MAX_MEM_RATIO = 0.7f;
 
 	/* ***************************************************************
 	 * PUBLIC STATIC METHODS

@@ -184,19 +184,28 @@ public class MRJobInfo extends JobInfo {
 	}
 
 	/**
+	 * Get the original (not adjusted) job profile
+	 * 
 	 * @return the job profile
 	 */
-	public MRJobProfile getProfile() {
+	public MRJobProfile getOrigProfile() {
 		if (profile == null) // Create on demand
 			profile = new MRJobProfile(getExecId());
 		return profile;
 	}
 
 	/**
-	 * @return the adjusted job profile
+	 * If an adjusted profile exists, get the adjusted profile. Otherwise, get
+	 * the original one.
+	 * 
+	 * @return the job profile
 	 */
-	public MRJobProfile getAdjProfile() {
-		return (hasAdjProfile) ? adjProfile : getProfile();
+	public MRJobProfile getProfile() {
+		if (hasAdjProfile) // Adjusted profile has precedence
+			return adjProfile;
+		if (profile == null) // Create on demand
+			profile = new MRJobProfile(getExecId());
+		return profile;
 	}
 
 	/**

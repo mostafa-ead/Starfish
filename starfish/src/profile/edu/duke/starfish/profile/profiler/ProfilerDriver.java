@@ -245,8 +245,8 @@ public class ProfilerDriver {
 				printDataTransfers(out, mrJob, mode);
 
 			} else if (manager.loadProfilesForMRJob(mrJob)
-					&& ProfileUtils.generateDataTransfers(mrJob, manager
-							.getHadoopConfiguration(mrJob.getExecId()))) {
+					&& ProfileUtils.generateDataTransfers(mrJob,
+							manager.getHadoopConfiguration(mrJob.getExecId()))) {
 				// Print the estimated data transfers
 				System.out.println("NOTE: Transfers estimated based "
 						+ "on profile information!");
@@ -282,41 +282,36 @@ public class ProfilerDriver {
 		} else if (mode.equals(ADJUST)) {
 
 			// Get profile with uncompression
-			MRJobProfile prof1 = null;
-			if (line.hasOption(JOB1)) {
-				String jobId = line.getOptionValue(JOB1);
-				prof1 = manager.getMRJobProfile(jobId);
-				if (prof1 == null) {
-					System.err.println("Unable to find a job with id " + jobId);
-					System.exit(-1);
-				}
+			String jobId1 = line.getOptionValue(JOB1);
+			MRJobInfo rmJob1 = manager.getMRJobInfo(jobId1);
+			if (rmJob1 == null || !manager.loadProfilesForMRJob(rmJob1)) {
+				System.err.println("Unable to find a job with id " + jobId1);
+				System.exit(-1);
 			}
 
 			// Get profile with compression
-			MRJobProfile prof2 = null;
-			if (line.hasOption(JOB2)) {
-				String jobId = line.getOptionValue(JOB2);
-				prof2 = manager.getMRJobProfile(jobId);
-				if (prof2 == null) {
-					System.err.println("Unable to find a job with id " + jobId);
-					System.exit(-1);
-				}
+			String jobId2 = line.getOptionValue(JOB2);
+			MRJobInfo rmJob2 = manager.getMRJobInfo(jobId2);
+			if (rmJob2 == null || !manager.loadProfilesForMRJob(rmJob2)) {
+				System.err.println("Unable to find a job with id " + jobId2);
+				System.exit(-1);
 			}
 
 			// Adjust the profile
-			MRJobProfile profResult = ProfileUtils
-					.adjustProfilesForCompression(prof1, prof2);
+			MRJobProfile[] profResult = ProfileUtils
+					.adjustProfilesForCompression(rmJob1.getOrigProfile(),
+							rmJob2.getOrigProfile());
 
 			// Export the adjusted profiles
 			File jobProfDir = new File(line.getOptionValue(RESULTS),
 					"job_profiles");
 			File profile1XML = new File(jobProfDir, "adj_profile_"
-					+ line.getOptionValue(JOB1).substring(4) + ".xml");
+					+ line.getOptionValue(JOB1) + ".xml");
 			File profile2XML = new File(jobProfDir, "adj_profile_"
-					+ line.getOptionValue(JOB2).substring(4) + ".xml");
+					+ line.getOptionValue(JOB2) + ".xml");
 
-			XMLProfileParser.exportJobProfile(profResult, profile1XML);
-			XMLProfileParser.exportJobProfile(profResult, profile2XML);
+			XMLProfileParser.exportJobProfile(profResult[0], profile1XML);
+			XMLProfileParser.exportJobProfile(profResult[1], profile2XML);
 
 			out.println("Completed adjusting profiles for "
 					+ line.getOptionValue(JOB1) + " and "
@@ -354,14 +349,14 @@ public class ProfilerDriver {
 
 		} else if (mode.equals(CPU_STATS)) {
 			// Print the CPU statistics
-			SysStatsLoader loader = new SysStatsLoader(line
-					.getOptionValue(MONITOR));
+			SysStatsLoader loader = new SysStatsLoader(
+					line.getOptionValue(MONITOR));
 			String nodeName = line.getOptionValue(NODE);
 			boolean success = false;
 
 			if (mrJob != null)
-				success = loader.exportCPUStats(out, nodeName, mrJob
-						.getStartTime(), mrJob.getEndTime());
+				success = loader.exportCPUStats(out, nodeName,
+						mrJob.getStartTime(), mrJob.getEndTime());
 			else
 				success = loader.exportCPUStats(out, nodeName);
 
@@ -372,14 +367,14 @@ public class ProfilerDriver {
 
 		} else if (mode.equals(MEM_STATS)) {
 			// Print the memory statistics
-			SysStatsLoader loader = new SysStatsLoader(line
-					.getOptionValue(MONITOR));
+			SysStatsLoader loader = new SysStatsLoader(
+					line.getOptionValue(MONITOR));
 			String nodeName = line.getOptionValue(NODE);
 			boolean success = false;
 
 			if (mrJob != null)
-				success = loader.exportMemoryStats(out, nodeName, mrJob
-						.getStartTime(), mrJob.getEndTime());
+				success = loader.exportMemoryStats(out, nodeName,
+						mrJob.getStartTime(), mrJob.getEndTime());
 			else
 				success = loader.exportMemoryStats(out, nodeName);
 
@@ -390,14 +385,14 @@ public class ProfilerDriver {
 
 		} else if (mode.equals(IO_STATS)) {
 			// Print the IO statistics
-			SysStatsLoader loader = new SysStatsLoader(line
-					.getOptionValue(MONITOR));
+			SysStatsLoader loader = new SysStatsLoader(
+					line.getOptionValue(MONITOR));
 			String nodeName = line.getOptionValue(NODE);
 			boolean success = false;
 
 			if (mrJob != null)
-				success = loader.exportIOStats(out, nodeName, mrJob
-						.getStartTime(), mrJob.getEndTime());
+				success = loader.exportIOStats(out, nodeName,
+						mrJob.getStartTime(), mrJob.getEndTime());
 			else
 				success = loader.exportIOStats(out, nodeName);
 
@@ -636,7 +631,8 @@ public class ProfilerDriver {
 				System.exit(-1);
 			}
 		}
-		// -mode adjust -job1 <job_id> -job2 <job_id> -results <dir> [-ouput <file>]
+		// -mode adjust -job1 <job_id> -job2 <job_id> -results <dir> [-ouput
+		// <file>]
 		else if (mode.equals(ADJUST)) {
 			if (!line.hasOption(JOB1)) {
 				System.err.println("The 'job1' option is required");

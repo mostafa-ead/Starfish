@@ -275,6 +275,39 @@ public abstract class JobOptimizer {
 	 */
 
 	/**
+	 * Copy the optimal settings from 'bestConf' into the current 'conf'
+	 * 
+	 * @param bestConf
+	 *            the configuration to copy from
+	 * @param conf
+	 *            the configuration to copy to
+	 */
+	public static void copyOptimalConfSettings(Configuration bestConf,
+			Configuration conf) {
+
+		// Copy the optimal configurations
+		for (Map.Entry<String, String> entry : bestConf) {
+			conf.set(entry.getKey(), entry.getValue());
+			LOG.info(entry.getKey() + " = " + entry.getValue());
+		}
+
+		// Special case for using the combiner
+		if (conf.get(MR_COMBINE_CLASS) != null
+				&& conf.getBoolean(STARFISH_USE_COMBINER, true) == false) {
+			// There is a combiner but the optimizer said not to use it and
+			// there is no way to remove a configuration setting.
+			// So, create a copy, clear the current conf, and copy over all
+			// the settings other than the combiner class
+			Configuration copy = new Configuration(conf);
+			conf.clear();
+			for (Entry<String, String> entry : copy) {
+				if (!entry.getKey().equals(MR_COMBINE_CLASS))
+					conf.set(entry.getKey(), entry.getValue());
+			}
+		}
+	}
+
+	/**
 	 * Process a job optimization request. Given a job and the job profile file,
 	 * this method will modify the job's configuration to use the recommended
 	 * settings.
@@ -295,31 +328,11 @@ public abstract class JobOptimizer {
 		Configuration bestConf = findBestJobConfiguration(job, jobProfileId);
 		if (bestConf != null) {
 			// Copy the optimal configurations
-			Configuration conf = job.getConfiguration();
-			for (Map.Entry<String, String> entry : bestConf) {
-				conf.set(entry.getKey(), entry.getValue());
-				LOG.info(entry.getKey() + " = " + entry.getValue());
-			}
-
-			// Special case for using the combiner
-			if (conf.get(MR_COMBINE_CLASS) != null
-					&& conf.getBoolean(STARFISH_USE_COMBINER, true) == false) {
-				// There is a combiner but the optimizer said not to use it and
-				// there is no way to remove a configuration setting.
-				// So, create a copy, clear the current conf, and copy over all
-				// the settings other than the combiner class
-				Configuration copy = new Configuration(conf);
-				conf.clear();
-				for (Entry<String, String> entry : copy) {
-					if (!entry.getKey().equals(MR_COMBINE_CLASS))
-						conf.set(entry.getKey(), entry.getValue());
-				}
-			}
-
+			copyOptimalConfSettings(bestConf, job.getConfiguration());
 			return true;
+		} else {
+			return false;
 		}
-
-		return false;
 	}
 
 	/**

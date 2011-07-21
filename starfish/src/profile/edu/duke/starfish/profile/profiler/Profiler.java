@@ -46,6 +46,7 @@ import edu.duke.starfish.profile.profileinfo.execution.jobs.MRJobInfo;
 import edu.duke.starfish.profile.profileinfo.execution.mrtaskattempts.MRMapAttemptInfo;
 import edu.duke.starfish.profile.profileinfo.execution.mrtaskattempts.MRReduceAttemptInfo;
 import edu.duke.starfish.profile.profileinfo.execution.mrtaskattempts.MRTaskAttemptInfo;
+import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
 import edu.duke.starfish.profile.profiler.loaders.MRJobHistoryLoader;
 import edu.duke.starfish.profile.profiler.loaders.MRTaskProfilesLoader;
 import edu.duke.starfish.profile.utils.XMLProfileParser;
@@ -325,8 +326,8 @@ public class Profiler {
 
 		// Get the HDFS Hadoop history directory
 		Path hdfsHistoryDir = null;
-		String outDir = conf.get(HADOOP_HDFS_JOB_HISTORY, conf
-				.get(MR_OUTPUT_DIR));
+		String outDir = conf.get(HADOOP_HDFS_JOB_HISTORY,
+				conf.get(MR_OUTPUT_DIR));
 		if (outDir != null && !outDir.equals("none")) {
 
 			hdfsHistoryDir = new Path(new Path(outDir), "_logs"
@@ -340,9 +341,12 @@ public class Profiler {
 		}
 
 		// Get the local Hadoop history directory (Hadoop v0.20.2)
-		String localHistory = conf.get(HADOOP_LOCAL_JOB_HISTORY, "file:///"
-				+ new File(System.getProperty(HADOOP_LOG_DIR))
-						.getAbsolutePath() + File.separator + "history");
+		String localHistory = conf
+				.get(HADOOP_LOCAL_JOB_HISTORY,
+						"file:///"
+								+ new File(System.getProperty(HADOOP_LOG_DIR))
+										.getAbsolutePath() + File.separator
+								+ "history");
 		Path localHistoryDir = new Path(localHistory);
 
 		// Copy the history files
@@ -504,11 +508,12 @@ public class Profiler {
 		if (profileLoader.loadExecutionProfile(mrJob)) {
 
 			// Get the cluster name, if any
+			MRJobProfile profile = mrJob.getOrigProfile();
 			String clusterName = conf.get(PROFILER_CLUSTER_NAME);
 			if (clusterName != null)
-				mrJob.getProfile().setClusterName(clusterName);
+				profile.setClusterName(clusterName);
 
-			XMLProfileParser.exportJobProfile(mrJob.getProfile(), profileXML);
+			XMLProfileParser.exportJobProfile(profile, profileXML);
 		} else {
 			LOG.error("Unable to create the job profile for "
 					+ mrJob.getExecId());
@@ -545,17 +550,17 @@ public class Profiler {
 
 		// The BTrace directory for the task profiling
 		if (conf.get(Profiler.PROFILER_BTRACE_DIR) == null)
-			conf.set(Profiler.PROFILER_BTRACE_DIR, 
+			conf.set(Profiler.PROFILER_BTRACE_DIR,
 					System.getProperty(Profiler.PROFILER_BTRACE_DIR));
 
 		// The cluster name
 		if (conf.get(Profiler.PROFILER_CLUSTER_NAME) == null)
-			conf.set(Profiler.PROFILER_CLUSTER_NAME, 
+			conf.set(Profiler.PROFILER_CLUSTER_NAME,
 					System.getProperty(Profiler.PROFILER_CLUSTER_NAME));
 
 		// The output directory for the result files
 		if (conf.get(Profiler.PROFILER_OUTPUT_DIR) == null)
-			conf.set(Profiler.PROFILER_OUTPUT_DIR, 
+			conf.set(Profiler.PROFILER_OUTPUT_DIR,
 					System.getProperty(Profiler.PROFILER_OUTPUT_DIR));
 	}
 
@@ -573,22 +578,22 @@ public class Profiler {
 
 		// The sampling mode (off, profiles, or tasks)
 		if (conf.get(Profiler.PROFILER_SAMPLING_MODE) == null)
-			conf.set(Profiler.PROFILER_SAMPLING_MODE, 
+			conf.set(Profiler.PROFILER_SAMPLING_MODE,
 					System.getProperty(Profiler.PROFILER_SAMPLING_MODE));
 
 		// The sampling fraction
 		if (conf.get(Profiler.PROFILER_SAMPLING_FRACTION) == null)
-			conf.set(Profiler.PROFILER_SAMPLING_FRACTION, 
+			conf.set(Profiler.PROFILER_SAMPLING_FRACTION,
 					System.getProperty(Profiler.PROFILER_SAMPLING_FRACTION));
 
 		// Flag to retain the task profiles
 		if (conf.get(Profiler.PROFILER_RETAIN_TASK_PROFS) == null)
-			conf.set(Profiler.PROFILER_RETAIN_TASK_PROFS, 
+			conf.set(Profiler.PROFILER_RETAIN_TASK_PROFS,
 					System.getProperty(Profiler.PROFILER_RETAIN_TASK_PROFS));
 
 		// Flag to collect the data transfers
 		if (conf.get(Profiler.PROFILER_COLLECT_TRANSFERS) == null)
-			conf.set(Profiler.PROFILER_COLLECT_TRANSFERS, 
+			conf.set(Profiler.PROFILER_COLLECT_TRANSFERS,
 					System.getProperty(Profiler.PROFILER_COLLECT_TRANSFERS));
 	}
 

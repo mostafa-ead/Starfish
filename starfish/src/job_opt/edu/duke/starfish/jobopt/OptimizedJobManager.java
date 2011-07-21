@@ -59,7 +59,7 @@ public class OptimizedJobManager implements IMRInfoManager {
 	 */
 	public OptimizedJobManager(MRJobInfo job, Configuration conf,
 			ClusterConfiguration cluster) {
-		this.sourceProfile = new MRJobProfile(job.getAdjProfile());
+		this.sourceProfile = new MRJobProfile(job.getProfile());
 		this.conf = new Configuration(conf);
 		this.cluster = new ClusterConfiguration(cluster);
 		this.specs = WhatIfUtils.generateMapInputSpecs(job);

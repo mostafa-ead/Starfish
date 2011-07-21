@@ -45,16 +45,6 @@ public class MRJobProfileLoader {
 	 */
 
 	/**
-	 * @return the adjusted job profile
-	 */
-	public MRJobProfile getAdjProfile() {
-		if (!loaded)
-			loadJobProfile(mrJob);
-
-		return mrJob.getAdjProfile();
-	}
-
-	/**
 	 * @return the job profile
 	 */
 	public MRJobProfile getProfile() {
