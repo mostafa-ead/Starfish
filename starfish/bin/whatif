@@ -137,7 +137,7 @@ else
    if [ "$#" != "2" ] && [ "$#" != "4" ] && [ "$#" != "6" ]; then
      echo "Invalid number of parameters!"
      echo "Usage with a HYPOTHETICAL cluster:"
-     echo "  $0 question profile_file input_file cluster_file conf_file [output_file]"
+     echo "  $0 question profile_file input_file cluster_file [-c conf_file] [-o output_file]"
      echo ""
      exit -1
    fi

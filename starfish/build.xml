@@ -295,7 +295,7 @@
 
 	</target>
 
-	<!-- package-zip command: Packages the project as a .zip file -->
+	<!-- release-zip command: Packages the project as a .zip file -->
 	<target name="release-zip" depends="release" 
 			description="Packages the release as a .zip file">
 		<delete file="${final.name}.zip" quiet="true" />
@@ -303,7 +303,7 @@
 		<delete dir="${final.name}" />
 	</target>
 
-	<!-- package-tar command: Packages the project as a .tar.gz file -->
+	<!-- release-tar command: Packages the project as a .tar.gz file -->
 	<target name="release-tar" depends="release" 
 			description="Packages the release as a .tar.gz file">
 		<delete file="${final.name}.tar.gz" quiet="true" />
@@ -377,6 +377,23 @@
 		<delete file="${starfish.profiler.jar}" />
 		<delete file="${starfish.whatif.jar}" />
 		<delete file="${starfish.jobopt.jar}" />
+	</target>
+
+	<!-- clean_all: Cleans Starfish, contrib projects, and visualizer -->
+	<target name="clean_all" 
+			depends="clean, clean_contrib_projects, clean_visualizer"
+			description="Cleans Starfish, contrib projects, and visualizer">
+	</target>
+
+	<!-- clean_contrib_projects: Cleans the projects in the contrib folder -->
+	<target name="clean_contrib_projects" depends="">
+		<ant dir="${contrib.examples.dir}" target="clean" inheritAll="false" />
+		<ant dir="${contrib.tfidf.dir}" target="clean" inheritAll="false" />
+	</target>
+
+	<!-- clean_visualizer: Cleans the visualizer -->
+	<target name="clean_visualizer" depends="">
+		<ant dir="${visualizer.dir}" target="clean" inheritAll="false" />
 	</target>
 
 	<!-- help command: Prints help information-->
