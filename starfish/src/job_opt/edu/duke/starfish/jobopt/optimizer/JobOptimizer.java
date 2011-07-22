@@ -21,8 +21,8 @@ import edu.duke.starfish.jobopt.space.ParameterSpacePoint;
 import edu.duke.starfish.profile.profileinfo.ClusterConfiguration;
 import edu.duke.starfish.profile.profileinfo.execution.jobs.MRJobInfo;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
-import edu.duke.starfish.profile.profiler.MRJobLogsManager;
 import edu.duke.starfish.profile.profiler.Profiler;
+import edu.duke.starfish.profile.utils.ProfileUtils;
 import edu.duke.starfish.whatif.WhatIfEngine;
 import edu.duke.starfish.whatif.data.DataSetModel;
 import edu.duke.starfish.whatif.data.RealAvgDataSetModel;
@@ -386,7 +386,9 @@ public abstract class JobOptimizer {
 	 * @param job
 	 *            the MapReduce job
 	 * @param jobProfileId
-	 *            the job id of the profiled job
+	 *            the job id of the profiled job (to ensure backwards
+	 *            compatibility, we allow this parameter to be a file path to
+	 *            the profile XML file)
 	 * @return the optimized configuration
 	 */
 	public static Configuration findBestJobConfiguration(Job job,
@@ -396,15 +398,11 @@ public abstract class JobOptimizer {
 		// because BTrace cannot catch them
 		Configuration conf = job.getConfiguration();
 		try {
-			// Get the logs manager
-			MRJobLogsManager manager = new MRJobLogsManager();
-			String resultsDir = conf.get(Profiler.PROFILER_OUTPUT_DIR);
-			manager.setResultsDir(resultsDir);
-
 			// Get the source profile
-			MRJobProfile sourceProf = manager.getMRJobProfile(jobProfileId);
+			MRJobProfile sourceProf = ProfileUtils.loadSourceProfile(
+					jobProfileId, conf);
 			if (sourceProf == null) {
-				LOG.error("Unable to find the profile for " + jobProfileId);
+				LOG.error("Unable to load the profile for " + jobProfileId);
 				return null;
 			}
 

@@ -10,8 +10,6 @@ import org.apache.hadoop.conf.Configuration;
 import edu.duke.starfish.profile.profileinfo.ClusterConfiguration;
 import edu.duke.starfish.profile.profileinfo.execution.jobs.MRJobInfo;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
-import edu.duke.starfish.profile.profiler.MRJobLogsManager;
-import edu.duke.starfish.profile.profiler.Profiler;
 import edu.duke.starfish.profile.utils.ProfileUtils;
 import edu.duke.starfish.whatif.data.DataSetModel;
 import edu.duke.starfish.whatif.data.RealAvgDataSetModel;
@@ -203,7 +201,9 @@ public class WhatIfEngine {
 	 * @param question
 	 *            the what-if question to ask
 	 * @param jobProfileId
-	 *            the job id of the profiled job
+	 *            the job id of the profiled job (to ensure backwards
+	 *            compatibility, we allow this parameter to be a file path to
+	 *            the profile XML file)
 	 * @param conf
 	 *            the configuration
 	 */
@@ -213,23 +213,20 @@ public class WhatIfEngine {
 		// Note: we must surround the entire method to catch all exceptions
 		// because BTrace cannot catch them
 		try {
-			// Get the logs manager
-			MRJobLogsManager manager = new MRJobLogsManager();
-			String resultsDir = conf.get(Profiler.PROFILER_OUTPUT_DIR);
-			manager.setResultsDir(resultsDir);
+			// Get the source profile
+			MRJobProfile sourceProf = ProfileUtils.loadSourceProfile(
+					jobProfileId, conf);
+			if (sourceProf == null) {
+				LOG.error("Unable to load the profile for " + jobProfileId);
+				return;
+			}
 
 			// Create the default parameters for the What-if Engine
 			DataSetModel dataModel = new RealAvgDataSetModel();
 			ClusterConfiguration cluster = new ClusterConfiguration(conf);
-			MRJobProfile sourceProf = manager.getMRJobProfile(jobProfileId);
 
-			if (sourceProf == null) {
-				LOG.error("Unable to find the profile for " + jobProfileId);
-				return;
-			}
-
+			// Answer the question
 			if (WhatIfQuestion.isValid(question)) {
-
 				answerWhatIfQuestion(WhatIfQuestion.getQuestion(question),
 						sourceProf, dataModel, cluster, conf, System.out);
 			} else {

@@ -2,6 +2,7 @@ package edu.duke.starfish.profile.utils;
 
 import static edu.duke.starfish.profile.utils.Constants.*;
 
+import java.io.File;
 import java.io.PrintStream;
 import java.text.NumberFormat;
 import java.util.Date;
@@ -28,6 +29,8 @@ import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRCounter;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRStatistics;
 import edu.duke.starfish.profile.profileinfo.execution.profile.enums.MRTaskPhase;
 import edu.duke.starfish.profile.profileinfo.metrics.DataTransfer;
+import edu.duke.starfish.profile.profiler.MRJobLogsManager;
+import edu.duke.starfish.profile.profiler.Profiler;
 
 /**
  * Contains utility methods that manipulate the profileinfo classes.
@@ -418,6 +421,36 @@ public class ProfileUtils {
 			return true;
 		else
 			return false;
+	}
+
+	/**
+	 * Finds and loads the source profile based on either a job profile id or a
+	 * profile file path.
+	 * 
+	 * This method exists only to ensure backwards compatibility with the time
+	 * we expected profile paths. The new approach is to load the profiles based
+	 * on job ids. In the case of a job id, we get the profiles directory from
+	 * "starfish.profiler.output.dir".
+	 * 
+	 * @param profileIdOrFile
+	 *            a job profile id or a profile file path
+	 * @param conf
+	 *            the job configuration
+	 * @return a job profile
+	 */
+	public static MRJobProfile loadSourceProfile(String profileIdOrFile,
+			Configuration conf) {
+
+		File profFile = new File(profileIdOrFile);
+		if (profFile.exists()) {
+			// profileIdOrFile is a file
+			return XMLProfileParser.importJobProfile(profFile);
+		} else {
+			// profileIdOrFile is a job id
+			MRJobLogsManager manager = new MRJobLogsManager();
+			manager.setResultsDir(conf.get(Profiler.PROFILER_OUTPUT_DIR));
+			return manager.getMRJobProfile(profileIdOrFile);
+		}
 	}
 
 	/**

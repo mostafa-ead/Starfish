@@ -18,11 +18,15 @@ import edu.duke.starfish.profile.profileinfo.ClusterConfiguration;
 import edu.duke.starfish.profile.profileinfo.execution.DataLocality;
 import edu.duke.starfish.profile.profileinfo.execution.MRExecutionStatus;
 import edu.duke.starfish.profile.profileinfo.execution.jobs.MRJobInfo;
+import edu.duke.starfish.profile.profileinfo.execution.mrtaskattempts.MRCleanupAttemptInfo;
 import edu.duke.starfish.profile.profileinfo.execution.mrtaskattempts.MRMapAttemptInfo;
 import edu.duke.starfish.profile.profileinfo.execution.mrtaskattempts.MRReduceAttemptInfo;
+import edu.duke.starfish.profile.profileinfo.execution.mrtaskattempts.MRSetupAttemptInfo;
 import edu.duke.starfish.profile.profileinfo.execution.mrtaskattempts.MRTaskAttemptInfo;
+import edu.duke.starfish.profile.profileinfo.execution.mrtasks.MRCleanupInfo;
 import edu.duke.starfish.profile.profileinfo.execution.mrtasks.MRMapInfo;
 import edu.duke.starfish.profile.profileinfo.execution.mrtasks.MRReduceInfo;
+import edu.duke.starfish.profile.profileinfo.execution.mrtasks.MRSetupInfo;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRJobProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRMapProfile;
 import edu.duke.starfish.profile.profileinfo.execution.profile.MRReduceProfile;
@@ -54,6 +58,7 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 	// Constants
 	private static final long HALF_HEARTBEAT_DELAY = 1500l;
 	private static final long HEARTBEAT_DELAY = 3000l;
+	private static final long SETUP_CLEANUP_TIME = 3000l;
 	private static final String JOB_NAME = "Virtual Job";
 	private static final String USER_NAME = "Virtual User";
 	private static final String VIRTUAL_TASK = "virtual_task_";
@@ -174,9 +179,27 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 			}
 		});
 
+		// Schedule the setup task attempt on a map slot
+		int numMapTasks = jobProfile.getCounter(MRCounter.MAP_TASKS).intValue();
+		TaskSlot setupSlot = mapSlots.poll();
+		MRSetupAttemptInfo setupAttempt = scheduleSetupExecution(setupSlot,
+				buildAttemptId(jobId, numMapTasks + 1, 0, true), jobStartTime);
+		mapSlots.add(setupSlot);
+
+		// Create the setup task
+		MRSetupInfo setup = new MRSetupInfo(0, buildTaskId(jobId,
+				numMapTasks + 1, true), setupAttempt.getStartTime(),
+				setupAttempt.getEndTime(), MRExecutionStatus.SUCCESS, null);
+		setup.addAttempt(setupAttempt);
+		job.addSetupTaskInfo(setup);
+
+		// Move the job start time after the setup completes
+		jobStartTime = new Date(setupAttempt.getEndTime().getTime());
+
 		// Schedule all the map tasks
 		int mapId = 0;
 		Date lastMapEndTime = jobStartTime;
+		TaskSlot lastMapTaskSlot = null;
 
 		for (MRMapProfile mapProf : mapProfs) {
 			int numTasks = mapProf.getNumTasks();
@@ -204,6 +227,7 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 				// Keep track of the last map end time
 				if (lastMapEndTime.before(map.getEndTime())) {
 					lastMapEndTime = map.getEndTime();
+					lastMapTaskSlot = mapSlot;
 				}
 			}
 		}
@@ -211,13 +235,30 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 		// Stop here if there are no reducers or asked to
 		List<MRReduceProfile> redProfiles = jobProfile.getReduceProfiles();
 		if (redProfiles.size() == 0 || ignoreReducers) {
-			job.setEndTime(new Date(lastMapEndTime.getTime() + HEARTBEAT_DELAY));
+
+			// Schedule the cleanup task attempt on the slot run the last map
+			mapSlots.remove(lastMapTaskSlot);
+			MRCleanupAttemptInfo cleanupAttempt = scheduleCleanupExecution(
+					lastMapTaskSlot,
+					buildAttemptId(jobId, numMapTasks, 0, true), lastMapEndTime);
+			mapSlots.add(lastMapTaskSlot);
+
+			// Create the cleanup task
+			MRCleanupInfo cleanup = new MRCleanupInfo(0, buildTaskId(jobId,
+					numMapTasks, true), cleanupAttempt.getStartTime(),
+					cleanupAttempt.getEndTime(), MRExecutionStatus.SUCCESS,
+					null);
+			cleanup.addAttempt(cleanupAttempt);
+			job.addCleanupTaskInfo(cleanup);
+
+			// Move the job end time after the cleanup completes
+			job.setEndTime(new Date(cleanupAttempt.getEndTime().getTime()
+					+ HEARTBEAT_DELAY));
+
 			return job;
 		}
 
 		// Calculate the number of completed maps before reducers start
-		int numMapTasks = jobProfile.getCounter(MRCounter.MAP_TASKS).intValue();
-
 		int numMapsBeforeReducers = (int) Math.ceil((conf.getFloat(
 				MR_RED_SLOWSTART_MAPS, DEF_RED_SLOWSTART_MAPS) * numMapTasks));
 		if (numMapsBeforeReducers == 0)
@@ -242,6 +283,7 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 		// Schedule all the reduce tasks
 		int redId = 0;
 		Date lastReduceEndTime = lastMapEndTime;
+		TaskSlot lastRedTaskSlot = null;
 
 		for (MRReduceProfile redProfile : redProfiles) {
 			int numRedTasks = redProfile.getNumTasks();
@@ -268,14 +310,31 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 				redAttempt.setExecId(buildAttemptId(jobId, redId, 0, false));
 				++redId;
 
-				// Keep track of the last map end time
+				// Keep track of the last reduce end time
 				if (lastReduceEndTime.before(reducer.getEndTime())) {
 					lastReduceEndTime = reducer.getEndTime();
+					lastRedTaskSlot = redSlot;
 				}
 			}
 		}
 
-		job.setEndTime(new Date(lastReduceEndTime.getTime() + HEARTBEAT_DELAY));
+		// Schedule the cleanup task attempt on the slot run the last reduce
+		redSlots.remove(lastRedTaskSlot);
+		MRCleanupAttemptInfo cleanupAttempt = scheduleCleanupExecution(
+				lastRedTaskSlot, buildAttemptId(jobId, redId + 1, 0, false),
+				lastReduceEndTime);
+		redSlots.add(lastRedTaskSlot);
+
+		// Create the cleanup task
+		MRCleanupInfo cleanup = new MRCleanupInfo(0, buildTaskId(jobId,
+				redId + 1, false), cleanupAttempt.getStartTime(),
+				cleanupAttempt.getEndTime(), MRExecutionStatus.SUCCESS, null);
+		cleanup.addAttempt(cleanupAttempt);
+		job.addCleanupTaskInfo(cleanup);
+
+		// Move the job end time after the cleanup completes
+		job.setEndTime(new Date(cleanupAttempt.getEndTime().getTime()
+				+ HEARTBEAT_DELAY));
 
 		return job;
 	}
@@ -350,7 +409,38 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 	}
 
 	/**
-	 * Schedule a map execution on a task slot.
+	 * Schedule a setup attempt execution on a task slot
+	 * 
+	 * @param taskSlot
+	 *            the task slot
+	 * @param attemptId
+	 *            the attempt id
+	 * @param jobStartTime
+	 *            the job start time
+	 * @return the setup attempt
+	 */
+	private MRSetupAttemptInfo scheduleSetupExecution(TaskSlot taskSlot,
+			String attemptId, Date jobStartTime) {
+
+		// Calculate the start and end times
+		Date startTime = taskSlot.getReadyTime();
+		if (startTime.before(jobStartTime))
+			startTime = jobStartTime;
+
+		startTime = new Date(startTime.getTime() + HALF_HEARTBEAT_DELAY);
+		Date endTime = new Date(startTime.getTime() + SETUP_CLEANUP_TIME);
+
+		// Schedule the map attempt
+		MRSetupAttemptInfo setupAttempt = new MRSetupAttemptInfo(0, attemptId,
+				startTime, endTime, MRExecutionStatus.SUCCESS, null,
+				taskSlot.getTaskTracker());
+		taskSlot.scheduleTaskAttempt(setupAttempt);
+
+		return setupAttempt;
+	}
+
+	/**
+	 * Schedule a map attempt execution on a task slot.
 	 * 
 	 * @param taskSlot
 	 *            the task slot
@@ -390,7 +480,7 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 	}
 
 	/**
-	 * Schedule a reducer for execution on a task slot
+	 * Schedule a reduce attempt for execution on a task slot
 	 * 
 	 * @param taskSlot
 	 *            the task slot
@@ -444,6 +534,37 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 		taskSlot.scheduleTaskAttempt(redAttempt);
 
 		return redAttempt;
+	}
+
+	/**
+	 * Schedule a cleanup attempt execution on a task slot
+	 * 
+	 * @param taskSlot
+	 *            the task slot
+	 * @param attemptId
+	 *            the attempt id
+	 * @param lastTaskEndTime
+	 *            the end time of the last map or reduce task
+	 * @return the setup attempt
+	 */
+	private MRCleanupAttemptInfo scheduleCleanupExecution(TaskSlot taskSlot,
+			String attemptId, Date lastTaskEndTime) {
+
+		// Calculate the start and end times
+		Date startTime = taskSlot.getReadyTime();
+		if (startTime.before(lastTaskEndTime))
+			startTime = lastTaskEndTime;
+
+		startTime = new Date(startTime.getTime() + HALF_HEARTBEAT_DELAY);
+		Date endTime = new Date(startTime.getTime() + SETUP_CLEANUP_TIME);
+
+		// Schedule the map attempt
+		MRCleanupAttemptInfo cleanupAttempt = new MRCleanupAttemptInfo(0,
+				attemptId, startTime, endTime, MRExecutionStatus.SUCCESS, null,
+				taskSlot.getTaskTracker());
+		taskSlot.scheduleTaskAttempt(cleanupAttempt);
+
+		return cleanupAttempt;
 	}
 
 	/* ***************************************************************

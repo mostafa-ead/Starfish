@@ -44,7 +44,7 @@ public class TestWhatIfEngine extends TestCase {
 		// Ask the what-if question
 		WhatIfEngine tsWhatif = new WhatIfEngine(tsOracle, model, scheduler);
 		double tsExecTime = tsWhatif.whatIfJobConfGetTime(tsConf);
-		assertEquals(144234.000, tsExecTime, 0.001);
+		assertEquals(153234.000, tsExecTime, 0.001);
 
 		// WordCount ---------------------------------------------------
 		MRJobProfile wcJobProf = SampleProfiles.getWordCountJobProfile();
@@ -60,7 +60,7 @@ public class TestWhatIfEngine extends TestCase {
 		// Ask the what-if question
 		WhatIfEngine wcWhatif = new WhatIfEngine(wcOracle, model, scheduler);
 		double wcExecTime = wcWhatif.whatIfJobConfGetTime(wcConf);
-		assertEquals(65271.000, wcExecTime, 0.0001);
+		assertEquals(74271.000, wcExecTime, 0.0001);
 	}
 
 	/**
@@ -88,7 +88,7 @@ public class TestWhatIfEngine extends TestCase {
 		// Ask the what-if question
 		WhatIfEngine tsWhatif = new WhatIfEngine(tsOracle, model, scheduler);
 		MRJobInfo tsJobInfo = tsWhatif.whatIfJobConfGetJobInfo(tsConf);
-		assertEquals(144234.0, tsJobInfo.getDuration(), 0.000001);
+		assertEquals(153234.0, tsJobInfo.getDuration(), 0.000001);
 
 		// Test generateMapInputSpecs()
 		List<MapInputSpecs> tsSpecs = WhatIfUtils
@@ -112,7 +112,7 @@ public class TestWhatIfEngine extends TestCase {
 		// Ask the what-if question
 		WhatIfEngine wcWhatif = new WhatIfEngine(wcOracle, model, scheduler);
 		MRJobInfo wcJobInfo = wcWhatif.whatIfJobConfGetJobInfo(wcConf);
-		assertEquals(65271.0, wcJobInfo.getDuration(), 0.000001);
+		assertEquals(74271.0, wcJobInfo.getDuration(), 0.000001);
 
 		// Test generateMapInputSpecs()
 		List<MapInputSpecs> wcSpecs = WhatIfUtils
