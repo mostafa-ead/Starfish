@@ -1,5 +1,7 @@
 package tfidf;
 
+import java.io.IOException;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.FileStatus;
@@ -52,8 +54,20 @@ public class WordsInCorpusTFIDF extends Configured implements Tool {
 		// Getting the number of documents from the original input directory.
 		Path inputPath = new Path(args[0]);
 		FileSystem fs = inputPath.getFileSystem(conf);
-		FileStatus[] stat = fs.listStatus(inputPath);
-		conf.setInt("docsInCorpus", stat.length);
+		FileStatus[] matches = fs.globStatus(inputPath);
+		if (matches == null || matches.length == 0)
+			throw new IOException("Input path does not exist: " + inputPath);
+
+		int docsInCoprus = 0;
+		for (FileStatus globStat : matches) {
+			if (globStat.isDir()) {
+				docsInCoprus += fs.listStatus(globStat.getPath()).length;
+			} else {
+				docsInCoprus += 1;
+			}
+
+		}
+		conf.setInt("docsInCorpus", docsInCoprus);
 
 		return job.waitForCompletion(true) ? 0 : 1;
 	}
