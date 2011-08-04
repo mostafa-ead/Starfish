@@ -42,7 +42,9 @@ public enum MRCounter {
 	FILE_BYTES_WRITTEN, // Bytes written to local file system
 	SPLIT_RAW_BYTES, // Split metadata bytes read from HDFS
 	HDFS_BYTES_READ, // Bytes read from HDFS
-	HDFS_BYTES_WRITTEN; // Bytes written to HDFS
+	HDFS_BYTES_WRITTEN, // Bytes written to HDFS
+	S3N_BYTES_READ, // Bytes read from S3
+	S3N_BYTES_WRITTEN; // Bytes written to S3
 
 	/**
 	 * @return a description for the counter
@@ -116,6 +118,10 @@ public enum MRCounter {
 			return "Bytes read from HDFS";
 		case HDFS_BYTES_WRITTEN:
 			return "Bytes written to HDFS";
+		case S3N_BYTES_READ:
+			return "Bytes read from S3";
+		case S3N_BYTES_WRITTEN:
+			return "Bytes written to S3";
 		default:
 			return toString();
 		}

@@ -37,8 +37,8 @@ public class ParamSpaceUtils {
 	 */
 
 	// Constants
-	private static final long MIN_SORT_MB = 20971520l;
-	private static final float MAX_MEM_RATIO = 0.7f;
+	private static final float MIN_MEM_RATIO = 0.25f;
+	private static final float MAX_MEM_RATIO = 0.65f;
 
 	/* ***************************************************************
 	 * PUBLIC STATIC METHODS
@@ -73,27 +73,24 @@ public class ParamSpaceUtils {
 		// Adjust the max value of io.sort.mb
 		if (space.containsParamDescriptor(HadoopParameter.SORT_MB)) {
 
-			adjustParamDescrSortMB(
-					(IntegerParamDescriptor) space
-							.getParameterDescriptor(HadoopParameter.SORT_MB),
+			adjustParamDescrSortMB((IntegerParamDescriptor) space
+					.getParameterDescriptor(HadoopParameter.SORT_MB),
 					jobProfile, taskMemory);
 		}
 
 		// Adjust the max value of mapred.job.reduce.input.buffer.percent
 		if (space.containsParamDescriptor(HadoopParameter.RED_IN_BUFF_PERC)) {
 
-			adjustParamDescrRedInBufferPerc(
-					(DoubleParamDescriptor) space
-							.getParameterDescriptor(HadoopParameter.RED_IN_BUFF_PERC),
+			adjustParamDescrRedInBufferPerc((DoubleParamDescriptor) space
+					.getParameterDescriptor(HadoopParameter.RED_IN_BUFF_PERC),
 					jobProfile, taskMemory);
 		}
 
 		// Adjust the min and max number of mapred.reduce.tasks
 		if (space.containsParamDescriptor(HadoopParameter.RED_TASKS)) {
 
-			adjustParamDescrRedTasks(
-					(IntegerParamDescriptor) space
-							.getParameterDescriptor(HadoopParameter.RED_TASKS),
+			adjustParamDescrRedTasks((IntegerParamDescriptor) space
+					.getParameterDescriptor(HadoopParameter.RED_TASKS),
 					jobProfile, taskMemory, cluster.getTotalReduceSlots());
 		}
 
@@ -125,8 +122,8 @@ public class ParamSpaceUtils {
 		long ioSortMem = taskMemory - mapMemory;
 		if (ioSortMem > (long) (MAX_MEM_RATIO * taskMemory))
 			ioSortMem = (long) (MAX_MEM_RATIO * taskMemory);
-		if (ioSortMem < MIN_SORT_MB)
-			ioSortMem = MIN_SORT_MB;
+		if (ioSortMem < (long) (MIN_MEM_RATIO * taskMemory))
+			ioSortMem = (long) (MIN_MEM_RATIO * taskMemory);
 
 		paramDescr.setMaxValue((int) (ioSortMem >> 20));
 	}
@@ -379,15 +376,15 @@ public class ParamSpaceUtils {
 			Configuration conf, Set<String> exclude) {
 
 		// Get the maximum memory
-		long maxMem = (long) (MAX_MEM_RATIO * ProfileUtils.getTaskMemory(conf));
-		if (maxMem < MIN_SORT_MB)
-			maxMem = MIN_SORT_MB;
+		long taskMem = ProfileUtils.getTaskMemory(conf);
+		long maxMem = (long) (MAX_MEM_RATIO * taskMem);
+		long minMem = (long) (MIN_MEM_RATIO * taskMem);
 
 		// Add parameters that effect the map tasks
 		if (!exclude.contains(HadoopParameter.SORT_MB.toString()))
 			space.addParameterDescriptor(new IntegerParamDescriptor(
 					HadoopParameter.SORT_MB, ParamTaskEffect.EFFECT_MAP,
-					(int) (MIN_SORT_MB >> 20), (int) (maxMem >> 20)));
+					(int) (minMem >> 20), (int) (maxMem >> 20)));
 		if (!exclude.contains(HadoopParameter.SPILL_PERC.toString()))
 			space.addParameterDescriptor(new DoubleParamDescriptor(
 					HadoopParameter.SPILL_PERC, ParamTaskEffect.EFFECT_MAP,
@@ -442,8 +439,10 @@ public class ParamSpaceUtils {
 					HadoopParameter.RED_IN_BUFF_PERC,
 					ParamTaskEffect.EFFECT_REDUCE, 0, 0.8));
 		if (!exclude.contains(HadoopParameter.COMPRESS_OUT.toString()))
-			space.addParameterDescriptor(new BooleanParamDescriptor(
-					HadoopParameter.COMPRESS_OUT, ParamTaskEffect.EFFECT_REDUCE));
+			space
+					.addParameterDescriptor(new BooleanParamDescriptor(
+							HadoopParameter.COMPRESS_OUT,
+							ParamTaskEffect.EFFECT_REDUCE));
 	}
 
 	/**
@@ -464,7 +463,7 @@ public class ParamSpaceUtils {
 		if (!exclude.contains(HadoopParameter.SORT_FACTOR.toString()))
 			space.addParameterDescriptor(new IntegerParamDescriptor(
 					HadoopParameter.SORT_FACTOR, ParamTaskEffect.EFFECT_BOTH,
-					2, 100));
+					10, 100));
 		if (!exclude.contains(HadoopParameter.COMPRESS_MAP_OUT.toString()))
 			space.addParameterDescriptor(new BooleanParamDescriptor(
 					HadoopParameter.COMPRESS_MAP_OUT,

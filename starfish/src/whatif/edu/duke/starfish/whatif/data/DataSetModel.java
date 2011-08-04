@@ -96,11 +96,11 @@ public abstract class DataSetModel {
 			for (MRMapProfile prof : mapProfiles) {
 				boolean isCompr = prof.getStatistic(
 						MRStatistics.OUT_COMPRESS_RATIO, 1d) != 1d;
-				outputSpecs
-						.add(new JobOutputSpecs(prof.getNumTasks(), prof
-								.getCounter(MRCounter.HDFS_BYTES_WRITTEN, 0l),
-								prof.getCounter(MRCounter.MAP_OUTPUT_RECORDS,
-										0l), isCompr));
+				outputSpecs.add(new JobOutputSpecs(prof.getNumTasks(), prof
+						.getCounter(MRCounter.HDFS_BYTES_WRITTEN, prof
+								.getCounter(MRCounter.S3N_BYTES_WRITTEN, 0l)),
+						prof.getCounter(MRCounter.MAP_OUTPUT_RECORDS, 0l),
+						isCompr));
 			}
 		} else {
 			// The is a map-reduce job
@@ -110,8 +110,9 @@ public abstract class DataSetModel {
 				boolean isCompr = prof.getStatistic(
 						MRStatistics.OUT_COMPRESS_RATIO, 1d) != 1d;
 				outputSpecs.add(new JobOutputSpecs(prof.getNumTasks(), prof
-						.getCounter(MRCounter.HDFS_BYTES_WRITTEN, 0l), prof
-						.getCounter(MRCounter.REDUCE_OUTPUT_RECORDS, 0l),
+						.getCounter(MRCounter.HDFS_BYTES_WRITTEN, prof
+								.getCounter(MRCounter.S3N_BYTES_WRITTEN, 0l)),
+						prof.getCounter(MRCounter.REDUCE_OUTPUT_RECORDS, 0l),
 						isCompr));
 			}
 		}

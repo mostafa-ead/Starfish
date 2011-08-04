@@ -172,8 +172,10 @@ public class BasicFIFOScheduler implements IWhatIfScheduler {
 		Collections.sort(mapProfs, new Comparator<MRMapProfile>() {
 			@Override
 			public int compare(MRMapProfile p1, MRMapProfile p2) {
-				Long size1 = p1.getCounter(MRCounter.HDFS_BYTES_READ, 0l);
-				Long size2 = p2.getCounter(MRCounter.HDFS_BYTES_READ, 0l);
+				Long size1 = p1.getCounter(MRCounter.HDFS_BYTES_READ,
+						p1.getCounter(MRCounter.S3N_BYTES_READ, 0l));
+				Long size2 = p2.getCounter(MRCounter.HDFS_BYTES_READ,
+						p2.getCounter(MRCounter.S3N_BYTES_READ, 0l));
 
 				return size2.compareTo(size1);
 			}

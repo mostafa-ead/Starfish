@@ -45,7 +45,8 @@ public class WhatIfUtils {
 
 			MRMapProfile mapProf = (MRMapProfile) attempt.getProfile();
 			int inputIndex = mapProf.getInputIndex();
-			long size = mapProf.getCounter(MRCounter.HDFS_BYTES_READ, 0l);
+			long size = mapProf.getCounter(MRCounter.HDFS_BYTES_READ,
+					mapProf.getCounter(MRCounter.S3N_BYTES_READ, 0l));
 			boolean isCompressed = mapProf.getStatistic(
 					MRStatistics.INPUT_COMPRESS_RATIO, 1d) != 1d;
 			MapInputSpecs spec = new MapInputSpecs(inputIndex, 1, size,

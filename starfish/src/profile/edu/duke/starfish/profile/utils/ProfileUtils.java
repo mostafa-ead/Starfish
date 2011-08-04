@@ -984,7 +984,8 @@ public class ProfileUtils {
 		double comprCost = ((profWithCompr
 				.getCostFactor(MRCostFactors.WRITE_HDFS_IO_COST) - profNoCompr
 				.getCostFactor(MRCostFactors.WRITE_HDFS_IO_COST)) * profWithCompr
-				.getCounter(MRCounter.HDFS_BYTES_WRITTEN))
+				.getCounter(MRCounter.HDFS_BYTES_WRITTEN, profWithCompr
+						.getCounter(MRCounter.S3N_BYTES_WRITTEN, 0l)))
 				/ (numRecs * avgRecSize);
 		if (comprCost < 0)
 			comprCost = 0d;

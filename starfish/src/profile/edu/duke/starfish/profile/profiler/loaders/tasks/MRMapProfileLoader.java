@@ -128,9 +128,11 @@ public class MRMapProfileLoader extends MRTaskProfileLoader {
 	private void calculateStatsAndCosts() throws ProfileFormatException {
 
 		// Get some useful counters
-		long hdfsBytesRead = profile.getCounter(MRCounter.HDFS_BYTES_READ, 0l);
+		long hdfsBytesRead = profile.getCounter(MRCounter.HDFS_BYTES_READ,
+				profile.getCounter(MRCounter.S3N_BYTES_READ, 0l));
 		long hdfsBytesWritten = profile.getCounter(
-				MRCounter.HDFS_BYTES_WRITTEN, 0l);
+				MRCounter.HDFS_BYTES_WRITTEN,
+				profile.getCounter(MRCounter.S3N_BYTES_WRITTEN, 0l));
 		long mapInputBytes = profile.getCounter(MRCounter.MAP_INPUT_BYTES, 0l);
 		long mapOutputBytes = profile
 				.getCounter(MRCounter.MAP_OUTPUT_BYTES, 0l);

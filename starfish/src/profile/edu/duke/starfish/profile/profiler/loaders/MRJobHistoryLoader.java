@@ -459,7 +459,7 @@ public class MRJobHistoryLoader {
 
 		String trackerName = null;
 		String fullHostName = null;
-		int port = 0;
+		int port = 50060;
 
 		// Populate the common task attempt attributes
 		for (Map.Entry<Keys, String> entry : taskAttempt.getValues().entrySet()) {
@@ -491,7 +491,8 @@ public class MRJobHistoryLoader {
 				}
 				break;
 			case HTTP_PORT:
-				port = Integer.parseInt(entry.getValue());
+				if (!entry.getValue().equals(""))
+					port = Integer.parseInt(entry.getValue());
 				break;
 			case HOSTNAME:
 				fullHostName = entry.getValue();

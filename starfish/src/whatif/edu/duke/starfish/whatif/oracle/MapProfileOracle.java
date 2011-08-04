@@ -257,7 +257,12 @@ public class MapProfileOracle extends TaskProfileOracle {
 		double mapInputRecs = mapInputBytes
 				/ virtualProf.getStatistic(MRStatistics.INPUT_PAIR_WIDTH);
 
-		virtualProf.addCounter(MRCounter.HDFS_BYTES_READ, inputSpecs.getSize());
+		if (sourceProf.containsCounter(MRCounter.S3N_BYTES_READ))
+			virtualProf.addCounter(MRCounter.S3N_BYTES_READ,
+					inputSpecs.getSize());
+		else
+			virtualProf.addCounter(MRCounter.HDFS_BYTES_READ,
+					inputSpecs.getSize());
 		virtualProf.addCounter(MRCounter.MAP_INPUT_BYTES, (long) mapInputBytes);
 		virtualProf
 				.addCounter(MRCounter.MAP_INPUT_RECORDS, (long) mapInputRecs);
@@ -294,8 +299,13 @@ public class MapProfileOracle extends TaskProfileOracle {
 			if (useOutputCompr)
 				mapOutBytes *= virtualProf
 						.getStatistic(MRStatistics.OUT_COMPRESS_RATIO);
-			virtualProf.addCounter(MRCounter.HDFS_BYTES_WRITTEN,
-					(long) mapOutBytes);
+
+			if (sourceProf.containsCounter(MRCounter.S3N_BYTES_WRITTEN))
+				virtualProf.addCounter(MRCounter.S3N_BYTES_WRITTEN,
+						(long) mapOutBytes);
+			else
+				virtualProf.addCounter(MRCounter.HDFS_BYTES_WRITTEN,
+						(long) mapOutBytes);
 		}
 	}
 
@@ -632,7 +642,8 @@ public class MapProfileOracle extends TaskProfileOracle {
 				sourceProf.getTiming(MRTaskPhase.SETUP, 0d));
 
 		// Calculate and set READ
-		double bytesRead = virtualProf.getCounter(MRCounter.HDFS_BYTES_READ);
+		double bytesRead = virtualProf.getCounter(MRCounter.HDFS_BYTES_READ,
+				virtualProf.getCounter(MRCounter.S3N_BYTES_READ, 0l));
 		double readCPU = 0d;
 		if (useInputCompr)
 			readCPU = bytesRead
@@ -658,8 +669,9 @@ public class MapProfileOracle extends TaskProfileOracle {
 				writeCPU = virtualProf.getCounter(MRCounter.MAP_OUTPUT_BYTES)
 						* virtualProf
 								.getCostFactor(MRCostFactors.OUTPUT_COMPRESS_CPU_COST);
-			double writeIO = virtualProf
-					.getCounter(MRCounter.HDFS_BYTES_WRITTEN)
+			double writeIO = virtualProf.getCounter(
+					MRCounter.HDFS_BYTES_WRITTEN,
+					virtualProf.getCounter(MRCounter.S3N_BYTES_WRITTEN, 0l))
 					* virtualProf
 							.getCostFactor(MRCostFactors.WRITE_HDFS_IO_COST);
 			virtualProf.addTiming(MRTaskPhase.WRITE, (writeCPU + writeIO)

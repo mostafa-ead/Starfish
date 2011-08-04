@@ -448,7 +448,13 @@ public class ReduceProfileOracle extends TaskProfileOracle {
 		if (useOutputCompr)
 			redOutSize *= virtualProf
 					.getStatistic(MRStatistics.OUT_COMPRESS_RATIO);
-		virtualProf.addCounter(MRCounter.HDFS_BYTES_WRITTEN, (long) redOutSize);
+
+		if (sourceProf.containsCounter(MRCounter.S3N_BYTES_WRITTEN))
+			virtualProf.addCounter(MRCounter.S3N_BYTES_WRITTEN,
+					(long) redOutSize);
+		else
+			virtualProf.addCounter(MRCounter.HDFS_BYTES_WRITTEN,
+					(long) redOutSize);
 	}
 
 	/**
@@ -556,7 +562,8 @@ public class ReduceProfileOracle extends TaskProfileOracle {
 				/ NS_PER_MS);
 
 		// Calculate and set WRITE
-		double writeIO = virtualProf.getCounter(MRCounter.HDFS_BYTES_WRITTEN)
+		double writeIO = virtualProf.getCounter(MRCounter.HDFS_BYTES_WRITTEN,
+				virtualProf.getCounter(MRCounter.S3N_BYTES_WRITTEN, 0l))
 				* virtualProf.getCostFactor(MRCostFactors.WRITE_HDFS_IO_COST);
 
 		double comprCPU = 0d;

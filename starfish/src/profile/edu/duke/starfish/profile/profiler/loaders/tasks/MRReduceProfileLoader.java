@@ -138,7 +138,8 @@ public class MRReduceProfileLoader extends MRTaskProfileLoader {
 
 		// Get some useful counters
 		long hdfsBytesWritten = profile.getCounter(
-				MRCounter.HDFS_BYTES_WRITTEN, 0l);
+				MRCounter.HDFS_BYTES_WRITTEN,
+				profile.getCounter(MRCounter.S3N_BYTES_WRITTEN, 0l));
 		long reduceInputGroups = profile.getCounter(
 				MRCounter.REDUCE_INPUT_GROUPS, 0l);
 		long reduceInputPairs = profile.getCounter(
@@ -188,26 +189,31 @@ public class MRReduceProfileLoader extends MRTaskProfileLoader {
 		profile.addCounter(MRCounter.REDUCE_OUTPUT_BYTES, reduceOutputBytes);
 
 		// Calculate and set the network cost
-		profile.addCostFactor(
-				MRCostFactors.NETWORK_COST,
-				averageProfileValueDiffRatios(shuffleRecords,
-						NUM_SHUFFLE_PHASES, POS_SHUFFLE_COPY_MAP_OUTPUT,
-						POS_SHUFFLE_UNCOMPRESS, POS_SHUFFLE_COMPR_BYTE_COUNT));
+		if (shuffleRecords.size() > 0)
+			profile.addCostFactor(
+					MRCostFactors.NETWORK_COST,
+					averageProfileValueDiffRatios(shuffleRecords,
+							NUM_SHUFFLE_PHASES, POS_SHUFFLE_COPY_MAP_OUTPUT,
+							POS_SHUFFLE_UNCOMPRESS,
+							POS_SHUFFLE_COMPR_BYTE_COUNT));
 
 		// Calculate and set the intermediate compression ratio and cost
 		double comprRatio = 1;
 		if (conf.getBoolean(MR_COMPRESS_MAP_OUT, false) == true) {
-			comprRatio = averageRecordValueRatios(shuffleRecords,
-					NUM_SHUFFLE_PHASES, POS_SHUFFLE_COMPR_BYTE_COUNT,
-					POS_SHUFFLE_UNCOMPR_BYTE_COUNT);
-			profile.addStatistic(MRStatistics.INTERM_COMPRESS_RATIO, comprRatio);
+			if (shuffleRecords.size() > 0) {
+				comprRatio = averageRecordValueRatios(shuffleRecords,
+						NUM_SHUFFLE_PHASES, POS_SHUFFLE_COMPR_BYTE_COUNT,
+						POS_SHUFFLE_UNCOMPR_BYTE_COUNT);
+				profile.addStatistic(MRStatistics.INTERM_COMPRESS_RATIO,
+						comprRatio);
 
-			// Uncompress cost = time to uncompress / compressed size
-			profile.addCostFactor(
-					MRCostFactors.INTERM_UNCOMPRESS_CPU_COST,
-					averageRecordValueRatios(shuffleRecords,
-							NUM_SHUFFLE_PHASES, POS_SHUFFLE_UNCOMPRESS,
-							POS_SHUFFLE_COMPR_BYTE_COUNT));
+				// Uncompress cost = time to uncompress / compressed size
+				profile.addCostFactor(
+						MRCostFactors.INTERM_UNCOMPRESS_CPU_COST,
+						averageRecordValueRatios(shuffleRecords,
+								NUM_SHUFFLE_PHASES, POS_SHUFFLE_UNCOMPRESS,
+								POS_SHUFFLE_COMPR_BYTE_COUNT));
+			}
 
 			// Compress cost = time to compress / uncompressed size
 			long spilledPairs = profile.getCounter(MRCounter.SPILLED_RECORDS,
