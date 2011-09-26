@@ -1,6 +1,6 @@
-Project: Cost-based Job Optimization in Starfish
+Project: Cost-based Optimization in Starfish
 Author: Herodotos Herodotou
-Date: Mar 03, 2011
+Date: July 29, 2011
 
 Requirements
 ------------
@@ -12,15 +12,15 @@ Setup
 Specify the global optimization options in bin/config.sh
 
 
-Job Optimization on a live cluster (with actual input data)
-------------------------------------------------------------
+MapReduce Job Optimization on a Live Cluster
+--------------------------------------------
 Use the bin/optimize script to perform job optimization:
 
 Usage:
   ./bin/optimize {recommend|run} job_id hadoop jar jarFile [mainClass] [genericOptions] args...
 
   recommend   = display the recommended configuration settings
-  run         = display the job with automatically selected settings
+  run         = run the job with automatically selected settings
   job_id      = the job id of the profiled job
 
 Examples:
@@ -29,8 +29,8 @@ Examples:
   ./bin/optimize run job_201008240839_0000 hadoop jar hadoop-starfish-examples.jar wordcount input output
 
 
-Job Optimization on a hypothetical cluster (with hypothetical input data)
--------------------------------------------------------------------------
+MapReduce Job Optimization on a hypothetical cluster
+----------------------------------------------------
 Use the bin/optimize script to perform job optimization:
 
 Usage:
@@ -62,11 +62,19 @@ Notes
    the MapReduce job execution.
 
 
-LIMITATIONS
+Limitations
 -----------
 Currently, we do not profile compression! If you plan to use the job profile
 to ask what-if questions regarding compression or to use the Job Optimizer,
 then you must profile the same job twice: once with no compression and once
 with compression. Then use the 'adjust' mode in the starfish-*-profiler.jar
 to create the job profile.
+
+   Usage:
+      hadoop jar starfish-*-profiler.jar -mode adjust -results <results_dir> \
+         -job1 <job_id_1> -job2 <job_id_2>
+
+   <results_dir> is the output directory specified in PROFILER_OUTPUT_DIR
+   <job_id_1> is the job id of the job profiled without compression
+   <job_id_2> is the job id of the job profiled with compression
 

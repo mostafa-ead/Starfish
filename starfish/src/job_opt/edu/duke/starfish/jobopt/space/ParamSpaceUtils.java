@@ -73,24 +73,27 @@ public class ParamSpaceUtils {
 		// Adjust the max value of io.sort.mb
 		if (space.containsParamDescriptor(HadoopParameter.SORT_MB)) {
 
-			adjustParamDescrSortMB((IntegerParamDescriptor) space
-					.getParameterDescriptor(HadoopParameter.SORT_MB),
+			adjustParamDescrSortMB(
+					(IntegerParamDescriptor) space
+							.getParameterDescriptor(HadoopParameter.SORT_MB),
 					jobProfile, taskMemory);
 		}
 
 		// Adjust the max value of mapred.job.reduce.input.buffer.percent
 		if (space.containsParamDescriptor(HadoopParameter.RED_IN_BUFF_PERC)) {
 
-			adjustParamDescrRedInBufferPerc((DoubleParamDescriptor) space
-					.getParameterDescriptor(HadoopParameter.RED_IN_BUFF_PERC),
+			adjustParamDescrRedInBufferPerc(
+					(DoubleParamDescriptor) space
+							.getParameterDescriptor(HadoopParameter.RED_IN_BUFF_PERC),
 					jobProfile, taskMemory);
 		}
 
 		// Adjust the min and max number of mapred.reduce.tasks
 		if (space.containsParamDescriptor(HadoopParameter.RED_TASKS)) {
 
-			adjustParamDescrRedTasks((IntegerParamDescriptor) space
-					.getParameterDescriptor(HadoopParameter.RED_TASKS),
+			adjustParamDescrRedTasks(
+					(IntegerParamDescriptor) space
+							.getParameterDescriptor(HadoopParameter.RED_TASKS),
 					jobProfile, taskMemory, cluster.getTotalReduceSlots());
 		}
 
@@ -145,9 +148,12 @@ public class ParamSpaceUtils {
 			DoubleParamDescriptor paramDescr, MRJobProfile jobProfile,
 			long taskMemory) {
 
+		MRReduceProfile redProfile = jobProfile.getAvgReduceProfile();
+		if (redProfile == null || redProfile.isEmpty())
+			return;
+
 		// Find the memory required by the reduce tasks
-		long redMemory = WhatIfUtils.getReduceMemoryRequired(jobProfile
-				.getAvgReduceProfile());
+		long redMemory = WhatIfUtils.getReduceMemoryRequired(redProfile);
 
 		// Calculate the percent of memory to be used to buffer input
 		double percent = (taskMemory - redMemory) / (double) taskMemory;
@@ -178,7 +184,7 @@ public class ParamSpaceUtils {
 
 		// Get the reduce profile
 		MRReduceProfile redProfile = jobProfile.getAvgReduceProfile();
-		if (redProfile == null)
+		if (redProfile == null || redProfile.isEmpty())
 			return;
 
 		// Calculate the (uncompressed) reduce input size
@@ -439,10 +445,8 @@ public class ParamSpaceUtils {
 					HadoopParameter.RED_IN_BUFF_PERC,
 					ParamTaskEffect.EFFECT_REDUCE, 0, 0.8));
 		if (!exclude.contains(HadoopParameter.COMPRESS_OUT.toString()))
-			space
-					.addParameterDescriptor(new BooleanParamDescriptor(
-							HadoopParameter.COMPRESS_OUT,
-							ParamTaskEffect.EFFECT_REDUCE));
+			space.addParameterDescriptor(new BooleanParamDescriptor(
+					HadoopParameter.COMPRESS_OUT, ParamTaskEffect.EFFECT_REDUCE));
 	}
 
 	/**

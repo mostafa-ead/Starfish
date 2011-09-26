@@ -196,45 +196,18 @@ public class Profiler {
 	}
 
 	/**
-	 * Gathers the job history files, task profiles, and data transfers. Also
-	 * creates the job profile.
-	 * 
-	 * See detailed comments at
-	 * {@link Profiler#gatherJobExecutionFiles(Configuration, String)}
-	 * 
-	 * @param conf
-	 *            the Hadoop job configuration
-	 * @param localDir
-	 *            the local directory to place the files at
-	 * @param retainTaskProfs
-	 *            flag to retain the task profiles
-	 * @param collectTransfers
-	 *            flag to collect the data transfers
-	 */
-	public static void gatherJobExecutionFiles(Configuration conf,
-			String localDir, boolean retainTaskProfs, boolean collectTransfers) {
-
-		conf.setBoolean(Profiler.PROFILER_RETAIN_TASK_PROFS, retainTaskProfs);
-		conf.setBoolean(Profiler.PROFILER_COLLECT_TRANSFERS, collectTransfers);
-		Profiler.gatherJobExecutionFiles(conf, localDir);
-	}
-
-	/**
 	 * Gathers the job history files, the task profiles, and data transfers if
-	 * requested. Generates the job profile. The generated directory structure
-	 * is:
+	 * requested. Generates the job profile.
 	 * 
-	 * localDir/history/conf.xml <br />
-	 * localDir/history/history_file <br />
-	 * localDir/task_profiles/task.profile <br />
-	 * localDir/job_profiles/job_profile.xml <br />
-	 * localDir/transfers/transfer <br />
+	 * For more info see
+	 * {@link Profiler#gatherJobExecutionFiles(Configuration, File)}.
+	 * 
+	 * NOTE: This method is to be used ONLY by BTrace scripts.
 	 * 
 	 * @param conf
 	 *            the MapReduce job configuration
 	 * @param localDir
 	 *            the local output directory
-	 * @throws IOException
 	 */
 	public static void gatherJobExecutionFiles(Configuration conf,
 			String localDir) {
@@ -242,61 +215,108 @@ public class Profiler {
 		// Note: we must surround the entire method to catch all exceptions
 		// because BTrace cannot catch them
 		try {
-
-			// Validate the results directory
-			File resultsDir = new File(localDir);
-			resultsDir.mkdirs();
-			if (!resultsDir.isDirectory()) {
-				throw new IOException("Not a valid directory "
-						+ resultsDir.toString());
-			}
-
-			// Gather the history files
-			File historyDir = new File(resultsDir, "history");
-			historyDir.mkdir();
-			File[] historyFiles = gatherJobHistoryFiles(conf, historyDir);
-
-			// Load the history information into a job info
-			MRJobHistoryLoader historyLoader = new MRJobHistoryLoader(
-					historyFiles[0].getAbsolutePath(),
-					historyFiles[1].getAbsolutePath());
-			MRJobInfo mrJob = historyLoader.getMRJobInfoWithDetails();
-			String jobId = mrJob.getExecId();
-
-			if (conf.getBoolean(MR_TASK_PROFILE, false)) {
-
-				// Gather the profile files
-				File taskProfDir = new File(resultsDir, "task_profiles");
-				taskProfDir.mkdir();
-				gatherJobProfileFiles(mrJob, taskProfDir);
-
-				// Export the job profile XML file
-				File jobProfDir = new File(resultsDir, "job_profiles");
-				jobProfDir.mkdir();
-				File profileXML = new File(jobProfDir, "profile_" + jobId
-						+ ".xml");
-				exportProfileXMLFile(mrJob, conf, taskProfDir, profileXML);
-
-				// Remove the task profiles if requested
-				if (!conf.getBoolean(PROFILER_RETAIN_TASK_PROFS, true)) {
-					for (File file : listTaskProfiles(jobId, taskProfDir)) {
-						file.delete();
-					}
-					taskProfDir.delete();
-				}
-			}
-
-			// Get the data transfers if requested
-			if (conf.getBoolean(PROFILER_COLLECT_TRANSFERS, false)) {
-				File transfersDir = new File(resultsDir, "transfers");
-				transfersDir.mkdir();
-				gatherJobTransferFiles(mrJob, transfersDir);
-			}
-
-			LOG.info("Job profiling completed! Output directory: " + localDir);
+			String jobId = Profiler.gatherJobExecutionFiles(conf, new File(
+					localDir));
+			LOG.info("Job profiling completed for " + jobId);
 		} catch (Exception e) {
 			LOG.error("Job profiling failed!", e);
 		}
+	}
+
+	/**
+	 * Gathers the job history files, the task profiles, and data transfers if
+	 * requested. For more info see
+	 * {@link Profiler#gatherJobExecutionFiles(Configuration, File)}.
+	 * 
+	 * NOTE: This method is to be used ONLY by BTrace scripts.
+	 * 
+	 * @param conf
+	 *            the MapReduce job configuration
+	 */
+	public static void gatherJobExecutionFiles(Configuration conf) {
+
+		// Note: we must surround the entire method to catch all exceptions
+		// because BTrace cannot catch them
+		try {
+			String localDir = conf.get(Profiler.PROFILER_OUTPUT_DIR);
+			String jobId = Profiler.gatherJobExecutionFiles(conf, new File(
+					localDir));
+			LOG.info("Gathered execution files for " + jobId);
+		} catch (Exception e) {
+			LOG.error("Unable to gather the execution files!", e);
+		}
+	}
+
+	/**
+	 * Gathers the job history files, the task profiles, and data transfers if
+	 * requested. Generates the job profile. The generated directory structure
+	 * is:
+	 * 
+	 * outputDir/history/conf.xml <br />
+	 * outputDir/history/history_file <br />
+	 * outputDir/task_profiles/task.profile <br />
+	 * outputDir/job_profiles/job_profile.xml <br />
+	 * outputDir/transfers/transfer <br />
+	 * 
+	 * @param conf
+	 *            the MapReduce job configuration
+	 * @param outputDir
+	 *            the local output directory
+	 * @return the job id
+	 * @throws IOException
+	 */
+	public static String gatherJobExecutionFiles(Configuration conf,
+			File outputDir) throws IOException {
+
+		// Validate the results directory
+		outputDir.mkdirs();
+		if (!outputDir.isDirectory()) {
+			throw new IOException("Not a valid directory "
+					+ outputDir.toString());
+		}
+
+		// Gather the history files
+		File historyDir = new File(outputDir, "history");
+		historyDir.mkdir();
+		File[] historyFiles = gatherJobHistoryFiles(conf, historyDir);
+
+		// Load the history information into a job info
+		MRJobHistoryLoader historyLoader = new MRJobHistoryLoader(
+				historyFiles[0].getAbsolutePath(),
+				historyFiles[1].getAbsolutePath());
+		MRJobInfo mrJob = historyLoader.getMRJobInfoWithDetails();
+		String jobId = mrJob.getExecId();
+
+		if (conf.getBoolean(MR_TASK_PROFILE, false)) {
+
+			// Gather the profile files
+			File taskProfDir = new File(outputDir, "task_profiles");
+			taskProfDir.mkdir();
+			gatherJobProfileFiles(mrJob, taskProfDir);
+
+			// Export the job profile XML file
+			File jobProfDir = new File(outputDir, "job_profiles");
+			jobProfDir.mkdir();
+			File profileXML = new File(jobProfDir, "profile_" + jobId + ".xml");
+			exportProfileXMLFile(mrJob, conf, taskProfDir, profileXML);
+
+			// Remove the task profiles if requested
+			if (!conf.getBoolean(PROFILER_RETAIN_TASK_PROFS, true)) {
+				for (File file : listTaskProfiles(jobId, taskProfDir)) {
+					file.delete();
+				}
+				taskProfDir.delete();
+			}
+		}
+
+		// Get the data transfers if requested
+		if (conf.getBoolean(PROFILER_COLLECT_TRANSFERS, false)) {
+			File transfersDir = new File(outputDir, "transfers");
+			transfersDir.mkdir();
+			gatherJobTransferFiles(mrJob, transfersDir);
+		}
+
+		return jobId;
 	}
 
 	/**
@@ -355,16 +375,14 @@ public class Profiler {
 			return localFiles;
 
 		// Get the local Hadoop history directory (Hadoop v0.20.203)
-		String jobId = getJobId(conf);
 		String doneLocation = conf.get(HADOOP_COMPLETED_HISTORY);
 		if (doneLocation == null)
 			doneLocation = new Path(localHistoryDir, "done").toString();
 
 		// Build the history location pattern. Example:
 		// history/done/version-1/localhost_1306866807968_/2011/05/31/000000
-		String localHistoryPattern = doneLocation + "/version-1/*_/"
-				+ jobId.substring(4, 8) + "/" + jobId.substring(8, 10) + "/"
-				+ jobId.substring(10, 12) + "/*";
+		String localHistoryPattern = doneLocation
+				+ "/version-[0-9]/*_/[0-9][0-9][0-9][0-9]/[0-9][0-9]/[0-9][0-9]/*";
 
 		FileSystem fs = FileSystem.getLocal(conf);
 		FileStatus[] status = fs.globStatus(new Path(localHistoryPattern));
@@ -577,22 +595,26 @@ public class Profiler {
 		loadCommonSystemProperties(conf);
 
 		// The sampling mode (off, profiles, or tasks)
-		if (conf.get(Profiler.PROFILER_SAMPLING_MODE) == null)
+		if (conf.get(Profiler.PROFILER_SAMPLING_MODE) == null
+				&& System.getProperty(Profiler.PROFILER_SAMPLING_MODE) != null)
 			conf.set(Profiler.PROFILER_SAMPLING_MODE,
 					System.getProperty(Profiler.PROFILER_SAMPLING_MODE));
 
 		// The sampling fraction
-		if (conf.get(Profiler.PROFILER_SAMPLING_FRACTION) == null)
+		if (conf.get(Profiler.PROFILER_SAMPLING_FRACTION) == null
+				&& System.getProperty(Profiler.PROFILER_SAMPLING_FRACTION) != null)
 			conf.set(Profiler.PROFILER_SAMPLING_FRACTION,
 					System.getProperty(Profiler.PROFILER_SAMPLING_FRACTION));
 
 		// Flag to retain the task profiles
-		if (conf.get(Profiler.PROFILER_RETAIN_TASK_PROFS) == null)
+		if (conf.get(Profiler.PROFILER_RETAIN_TASK_PROFS) == null
+				&& System.getProperty(Profiler.PROFILER_RETAIN_TASK_PROFS) != null)
 			conf.set(Profiler.PROFILER_RETAIN_TASK_PROFS,
 					System.getProperty(Profiler.PROFILER_RETAIN_TASK_PROFS));
 
 		// Flag to collect the data transfers
-		if (conf.get(Profiler.PROFILER_COLLECT_TRANSFERS) == null)
+		if (conf.get(Profiler.PROFILER_COLLECT_TRANSFERS) == null
+				&& System.getProperty(Profiler.PROFILER_COLLECT_TRANSFERS) != null)
 			conf.set(Profiler.PROFILER_COLLECT_TRANSFERS,
 					System.getProperty(Profiler.PROFILER_COLLECT_TRANSFERS));
 	}

@@ -103,6 +103,12 @@ if [ "$MODE" == "run" ] || [ "$MODE" == "recommend" ]; then
    fi
    HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.job.optimizer.output=${OUTPUT_LOCATION}"
 
+   # Flag for collecting the data transfers
+   if [ "$COLLECT_DATA_TRANSFERS" = "" ]; then
+     COLLECT_DATA_TRANSFERS=false
+   fi
+   HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.profiler.collect.data.transfers=${COLLECT_DATA_TRANSFERS}"
+
    # Get the dataflow optimizer type
    if [ "$DATAFLOW_OPTIMIZER_TYPE" = "" ]; then
      DATAFLOW_OPTIMIZER_TYPE=cross_jobs

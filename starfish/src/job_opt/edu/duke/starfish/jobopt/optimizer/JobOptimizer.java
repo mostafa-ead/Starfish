@@ -558,7 +558,7 @@ public abstract class JobOptimizer {
 	public static void loadOptimizationSystemProperties(Configuration conf) {
 
 		// Load the common system properties
-		Profiler.loadCommonSystemProperties(conf);
+		Profiler.loadProfilingSystemProperties(conf);
 
 		// Set the optimizer type
 		if (conf.get(JOB_OPT_TYPE) == null)

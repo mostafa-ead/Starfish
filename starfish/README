@@ -1,8 +1,7 @@
-Project: Starfish
-Authors: Herodotos Herodotou, Harold Lim, Nedyalko Borisov,
-         Gang Luo, Liang Dong, Fei Dong
+Project: Starfish: A Self-tuning System for Big Data Analytics
+Authors: Herodotos Herodotou, Harold Lim, Fei Dong, Shivnath Babu
 Website: http://www.cs.duke.edu/starfish
-Date:    April 05, 2011
+Date:    July 29, 2011
 
 
 Description
@@ -41,7 +40,7 @@ questions regarding the job behavior and, (c) ultimately optimize the job.
 
 Requirements
 ------------
-1. Starfish currently only supports Hadoop version 0.20.2
+1. Starfish currently only supports Hadoop versions 0.20.2 and 0.20.203.0
 2. The MapReduce programs must be written using the new Hadoop API
 3. The Visualizer requires JavaFX version 1.2.1
 
@@ -55,7 +54,7 @@ Usage:
 
 Directories
 -----------
-- bin:     Contains the Starfish shell scripts
+- bin:     Contains the Starfish's Command Line Interface
 - contrib: Contains various MapReduce programs (compiled separately)
 - docs:    Contains usage documentation
 - lib:     Contains library jars for compiling the source code
@@ -64,21 +63,21 @@ Directories
 - tools:   Contains profiling and monitoring tools
 - visualizer: Contains Starfish's Graphical User Interface (compiled separately)
 
-- build:         Will contain the compiled classes
-- hadoop-btrace: Will contains the compiled BTrace classes and jars
+- build:   Will contain the compiled classes
+- btrace:  Will contains the compiled BTrace classes
 
 
 Compilation
 -----------
 >> ant
-Compiles the entire source code. The classes, scripts, docs, and jars are 
-placed in the 'build' directory
+Compiles the entire source code in the 'build' directory and generates the
+jar files as well as the BTrace scripts
 
 >> ant test
-Executes all JUnit tests available
+Executes all available JUnit tests
 
 >> ant javadoc
-Generated the javadoc documentation in 'build/docs/api'
+Generated the javadoc documentation in 'docs/api'
 
 >> ant clean
 Deletes the 'build' directory

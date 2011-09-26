@@ -89,7 +89,7 @@ if [ "$1" = "hadoop" ]; then
    ################################################################
 
    # Specify the Java agent
-   HADOOP_OPTS="${HADOOP_OPTS} -javaagent:${MASTER_BTRACE_DIR}/btrace-agent.jar=dumpClasses=false,debug=false,unsafe=true,probeDescPath=.,noServer=true,stdout,script=${MASTER_BTRACE_DIR}/BTraceWhatIf.class"
+   HADOOP_OPTS="${HADOOP_OPTS} -javaagent:${MASTER_BTRACE_DIR}/btrace-agent.jar=dumpClasses=false,debug=false,unsafe=true,probeDescPath=.,noServer=true,stdout,script=${MASTER_BTRACE_DIR}/BTraceJobWhatIf.class"
 
    # Add the whatif jar to the Hadoop classpath
    HADOOP_CLASSPATH_OLD=$HADOOP_CLASSPATH

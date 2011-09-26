@@ -275,6 +275,10 @@ public class DataSkewView extends AppView {
     			var bytes: Number;
     			if (type == 0) {
 	   				bytes = profile.getCounter(MRCounter.MAP_INPUT_BYTES, zero);
+	   				if (bytes == 0) {
+	   					bytes = profile.getCounter(MRCounter.HDFS_BYTES_READ,
+	   						profile.getCounter(MRCounter.S3N_BYTES_READ, zero));
+	   				}
     			} else {
     			    bytes = profile.getCounter(MRCounter.MAP_OUTPUT_BYTES, zero);
     			}
@@ -295,9 +299,16 @@ public class DataSkewView extends AppView {
 				var bytes: Number;   		 			
     			if (type == 2) {
 	   				bytes = profile.getCounter(MRCounter.REDUCE_INPUT_BYTES, zero);
+	   				if (bytes == 0) {
+   	   					bytes = profile.getCounter(MRCounter.REDUCE_SHUFFLE_BYTES, zero);
+   	  				}
     			} else {
     			    bytes = profile.getCounter(MRCounter.REDUCE_OUTPUT_BYTES, zero);
-    			}
+	   				if (bytes == 0) {
+	   					bytes = profile.getCounter(MRCounter.HDFS_BYTES_WRITTEN,
+       						profile.getCounter(MRCounter.S3N_BYTES_WRITTEN, zero));
+       				}
+       			}
     			insert bytes / 1048576 into data;
     			
     			++numTasks;

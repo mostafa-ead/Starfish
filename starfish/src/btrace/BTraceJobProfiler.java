@@ -24,12 +24,12 @@ import edu.duke.starfish.profile.utils.Constants;
  * In order to enable profiling, the job must implement the new API.
  * 
  * In order to compute and profile at the end, the job must have submitted the
- * job using the job's method 'waitForCompletion'.
+ * job using the job's method 'waitForCompletion' or via JobControl.
  * 
  * @author hero
  */
 @BTrace
-public class BTraceProfiler {
+public class BTraceJobProfiler {
 		
 		/**
 		 * Initial probe to enable profiling
@@ -90,7 +90,7 @@ public class BTraceProfiler {
 			String outputDir = conf.get(Profiler.PROFILER_OUTPUT_DIR);
 
 			// Gather the execution files
-			Profiler.gatherJobExecutionFiles(job.getConfiguration(), outputDir);
+			Profiler.gatherJobExecutionFiles(conf, outputDir);
 		}
 		
 		/**

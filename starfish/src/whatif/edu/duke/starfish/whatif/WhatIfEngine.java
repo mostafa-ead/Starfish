@@ -196,7 +196,7 @@ public class WhatIfEngine {
 
 	/**
 	 * Process a What-if request. This method is meant to be used by the
-	 * BTraceWhatIf script.
+	 * BTraceJobWhatIf script.
 	 * 
 	 * @param question
 	 *            the what-if question to ask

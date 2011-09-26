@@ -60,13 +60,20 @@ public class MultiJobParameterSpace implements
 	}
 
 	/**
-	 * Get an empty multi-job space point
+	 * Get an empty multi-job space point defined as an empty job space for each
+	 * job id.
 	 * 
 	 * @return an empty multi-job space point
 	 */
 	@Override
 	public MultiJobParamSpacePoint getEmptySpacePoint() {
-		return new MultiJobParamSpacePoint();
+
+		MultiJobParamSpacePoint emptyPoint = new MultiJobParamSpacePoint();
+		for (Entry<Integer, ParameterSpace> entry : spaces.entrySet())
+			emptyPoint.addJobSpacePoint(entry.getKey(), entry.getValue()
+					.getEmptySpacePoint());
+
+		return emptyPoint;
 	}
 
 	/**
@@ -156,9 +163,8 @@ public class MultiJobParameterSpace implements
 		double pScale = Math.pow(scale, 1.0d / spaces.size());
 
 		for (Entry<Integer, ParameterSpace> entry : spaces.entrySet()) {
-			point.addJobSpacePoint(
-					entry.getKey(),
-					entry.getValue().getRandomSpacePoint(
+			point.addJobSpacePoint(entry.getKey(), entry.getValue()
+					.getRandomSpacePoint(
 							center.getJobSpacePoint(entry.getKey()), pScale));
 		}
 
@@ -190,8 +196,10 @@ public class MultiJobParameterSpace implements
 					.getSpacePointGrid(random, numValuesPerParam);
 
 			int numPoints = jobPoints.size();
-			if (numPoints == 0)
-				continue;
+			if (numPoints == 0) {
+				jobPoints.add(entry.getValue().getEmptySpacePoint());
+				++numPoints;
+			}
 
 			if (result.size() == 0) {
 				// First parameter. Add one point for each value

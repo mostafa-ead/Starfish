@@ -264,6 +264,9 @@ public class ParameterSpace implements IRRSSearchSpace<ParameterSpacePoint> {
 			}
 		}
 
+		if (points.size() == 0)
+			points.add(getEmptySpacePoint());
+
 		return points;
 	}
 

@@ -439,10 +439,13 @@ public class ReduceProfileOracle extends TaskProfileOracle {
 				(long) redOutPairs);
 
 		// Set reduce input groups
+		double redInputGroups = redInputPairs
+				/ virtualProf.getStatistic(MRStatistics.REDUCE_PAIRS_PER_GROUP,
+						DEF_RED_PAIRS_PER_GROUP);
+		if (redInputGroups < 1 && redInputPairs > 0)
+			redInputGroups = 1;
 		virtualProf.addCounter(MRCounter.REDUCE_INPUT_GROUPS,
-				(long) (redInputPairs / virtualProf.getStatistic(
-						MRStatistics.REDUCE_PAIRS_PER_GROUP,
-						DEF_RED_PAIRS_PER_GROUP)));
+				(long) redInputGroups);
 
 		// Calculate and set the output size
 		if (useOutputCompr)

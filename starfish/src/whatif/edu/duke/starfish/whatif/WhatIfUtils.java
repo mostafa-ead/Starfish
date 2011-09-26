@@ -142,7 +142,7 @@ public class WhatIfUtils {
 	 */
 	public static long getReduceMemoryRequired(MRReduceProfile redProfile) {
 
-		if (redProfile == null)
+		if (redProfile == null || redProfile.isEmpty())
 			return 0l;
 
 		double memory = redProfile.getStatistic(MRStatistics.STARTUP_MEM, 0d)

@@ -56,7 +56,9 @@ Counters
 	FILE_BYTES_READ - Bytes read from local file system
 	FILE_BYTES_WRITTEN - Bytes written to local file system
 	HDFS_BYTES_READ - Bytes read from HDFS
-	HDFS_BYTES_WRITTEN; // Bytes written to HDFS
+	HDFS_BYTES_WRITTEN - Bytes written to HDFS
+	S3N_BYTES_READ - Bytes read from S3
+	S3N_BYTES_WRITTEN - Bytes written to S3
 
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------

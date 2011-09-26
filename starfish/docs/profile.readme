@@ -1,10 +1,10 @@
 Project: Dynamic Profiling in Starfish
 Author: Herodotos Herodotou
-Date: Mar 03, 2011
+Date: July 29, 2011
 
 Requirements
 ------------
-1. Profiling will work only with Hadoop version 0.20.2
+1. Profiling will work only with Hadoop versions 0.20.2 and 0.20.203.0
 2. Profiling will work only with jobs implementing the new API
 
 
@@ -27,7 +27,7 @@ you must first install the BTrace jars and classes.
       ./bin/install_btrace.sh /root/SLAVE_NAMES.txt
 
 
-Profile a MapReduce job execution
+Profile a MapReduce Job Execution
 ---------------------------------
 There are two ways to profile the execution of a MapReduce job.
 
@@ -37,9 +37,9 @@ Method A (Recommended): Using the bin/profile script
 2. Execute the bin/profile script
 
    Usage:
-      ./bin/profile jar jarFile [mainClass] [genericOptions] args...
+      ./bin/profile hadoop jar jarFile [mainClass] [genericOptions] args...
    Example:
-      ./bin/profile jar hadoop-starfish-examples.jar wordcount input output
+      ./bin/profile hadoop jar hadoop-starfish-examples.jar wordcount input output
 
 
 Method B: Using a Hadoop configuration file 
@@ -66,15 +66,25 @@ Method B: Using a Hadoop configuration file
       ./gather_results.sh job_201001052153_0021
 
 
-WARNING:
+Warning
+-------
 The job's driver class must implement the Tool interface for step 3
 to work correctly. If not, you must copy-paste the configurations
 from btrace-conf.xml into $HADOOP_HOME/conf/mapred-site.xml
 
-LIMITATIONS:
+Limitation
+----------
 Currently, we do not profile compression! If you plan to use the job profile
 to ask what-if questions regarding compression or to use the Job Optimizer,
 then you must profile the same job twice: once with no compression and once
 with compression. Then use the 'adjust' mode in the starfish-*-profiler.jar
 to create the job profile.
+
+   Usage:
+      hadoop jar starfish-*-profiler.jar -mode adjust -results <results_dir> \
+         -job1 <job_id_1> -job2 <job_id_2>
+
+   <results_dir> is the output directory specified in PROFILER_OUTPUT_DIR
+   <job_id_1> is the job id of the job profiled without compression
+   <job_id_2> is the job id of the job profiled with compression
 

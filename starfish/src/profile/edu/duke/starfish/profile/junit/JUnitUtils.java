@@ -32,7 +32,7 @@ public class JUnitUtils {
 			taskTracker.setNumMapSlots(2);
 			taskTracker.setNumReduceSlots(2);
 		}
-
+		
 		// Add job tracker
 		cluster
 				.addFindJobTrackerInfo("job_tracker",

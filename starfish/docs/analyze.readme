@@ -1,18 +1,18 @@
 Project: Job Analysis in Starfish
 Author: Herodotos Herodotou
-Date: May 18, 2011
+Date: July 29, 2011
 
 Requirements
 ------------
 The Profiler has been used (see profile.readme) to generate the job profiles
 
 
-Analyze Hadoop and Profile Logs
+Analyze Hadoop Profiling Logs
 -------------------------------
 The 'bin/analyze' script provides a command line interface for
 displaying information regarding past MR job executions.
 
-Usage: bin/analyze hadoop mode job_id [output_file]
+Usage: ./bin/analyze hadoop mode job_id [output_file]
 
   'mode' values and descriptions:
     list_all     List all available jobs
@@ -42,10 +42,10 @@ Examples:
 
    ./bin/analyze hadoop transfers_red job_201008240839_0000
 
-   ./bin/analyze hadoop profile job_201008240839_0000 my_profile.xml
+   ./bin/analyze hadoop profile job_201008240839_0000
 
 
-NOTES
+Notes
 -----
 1. You can use the Starfish Visualizer to analyze the MapReduce job execution.
 

@@ -20,7 +20,7 @@ import edu.duke.starfish.whatif.WhatIfEngine;
  * @author hero
  */
 @BTrace
-public class BTraceWhatIf {
+public class BTraceJobWhatIf {
 
 	@OnMethod(clazz = "org.apache.hadoop.mapreduce.Job", 
 			method = "submit", 

@@ -1,14 +1,14 @@
 Project: What-if Analysis in Starfish
 Author: Herodotos Herodotou
-Date: Mar 03, 2011
+Date: July 29, 2011
 
 Requirements
 ------------
 The Profiler has been used (see profile.readme) to generate the job profiles
 
 
-What-if questions on a live cluster (with actual input data)
-------------------------------------------------------------
+What-if Questions for MapReduce Programs on a Live Cluster
+----------------------------------------------------------
 Use the bin/whatif script to ask a what-if question:
 
 Usage:
@@ -28,9 +28,11 @@ Usage:
 Example:
   ./bin/whatif details job_201008240839_0000 hadoop jar hadoop-starfish-examples.jar wordcount -conf=myconf.xml input output
 
+Tip: You can get the job ids using './bin/analyze hadoop list_all'
 
-What-if questions on a hypothetical cluster (with hypothetical input data)
---------------------------------------------------------------------------
+
+What-if Questions for MapReduce Programs on a Hypothetical Cluster
+------------------------------------------------------------------
 Use the bin/whatif script to ask a what-if question:
 
 Usage:
@@ -71,7 +73,7 @@ Notes
    the MapReduce job execution.
 
 
-LIMITATIONS
+Limitations
 -----------
 Currently, we do not profile compression! If you plan to use the job profile
 to ask what-if questions regarding compression or to use the Job Optimizer,
@@ -79,4 +81,11 @@ then you must profile the same job twice: once with no compression and once
 with compression. Then use the 'adjust' mode in the starfish-*-profiler.jar
 to create the job profile.
 
+   Usage:
+      hadoop jar starfish-*-profiler.jar -mode adjust -results <results_dir> \
+         -job1 <job_id_1> -job2 <job_id_2>
+
+   <results_dir> is the output directory specified in PROFILER_OUTPUT_DIR
+   <job_id_1> is the job id of the job profiled without compression
+   <job_id_2> is the job id of the job profiled with compression
 

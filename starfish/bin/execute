@@ -1,43 +1,41 @@
 #!/usr/bin/env bash
 
 ###################################################################
-# The gather_results command script
+# The 'execute' command script
 #
-# This script is used to gather the history, profile, and transfer 
-# files after a job completes execution. This script is useful
-# when a job is not profiled, or when the job is profiled
-# without the bin/profile script.
+# Executes a MapReduce job on the Hadoop cluster and collects the
+# execution files upon completion.
 #
 # The user should not need to modify this script. All user-defined
 # parameters can be set in 'config.sh'.
 #
 # Author: Herodotos Herodotou
-# Date:   July 11, 2011
+# Date:   Sep 22, 2011
 ###################################################################
 
 
 # if no args specified, show usage
 if [ $# = 0 ]; then
-  echo "Usage 1: Single job id:"
-  echo "    $0 job_id"
-  echo "Usage 2: Range of job ids:"
-  echo "    $0 first_job_id last_job_id"
+  echo "Hadoop Usage:"
+  echo "    $0 hadoop jar jarFile [mainClass] [genericOptions] args..."
   echo ""
-  echo "General parameters are set in bin/config.sh"
+  echo "Profile-related parameters are set in bin/config.sh"
   echo ""
   exit 1
 fi
 
-# Perform common tasks like Load configurations and initializations
+# Get the execution system (hadoop)
+SYSTEM=$1
+shift
+if [ "$SYSTEM" != "hadoop" ]; then
+   echo "ERROR: Expected 'hadoop' as the first argument"
+   exit -1
+fi
+
+# Perform common tasks like load configurations and initializations
 bin=`dirname "$0"`
 . "$bin"/common.sh
 
-
-# Default output directory is the working directory
-if [ "$PROFILER_OUTPUT_DIR" = "" ]; then
-  PROFILER_OUTPUT_DIR=$CURRENT_DIR
-fi
-HADOOP_OPTS="${HADOOP_OPTS} -Dstarfish.profiler.output.dir=${PROFILER_OUTPUT_DIR}"
 
 # Flag for retaining the task profiles
 if [ "$RETAIN_TASK_PROFILES" = "" ]; then
@@ -89,9 +87,19 @@ do
 done
 IFS="$OLD_IFS"
 
-# Export the required hadoop parameters
-export HADOOP_OPTS
-export HADOOP_CLASSPATH
+# Run the command
+if [ "$SYSTEM" = "hadoop" ]; then
 
-# Execute the hadoop command
-${HADOOP_HOME}/bin/hadoop edu.duke.starfish.profile.utils.GatherResults "$1" "$2"
+   # HADOOP
+   #################################################################
+
+   # Specify the Java agent
+   HADOOP_OPTS="${HADOOP_OPTS} -javaagent:${MASTER_BTRACE_DIR}/btrace-agent.jar=dumpClasses=false,debug=false,unsafe=true,probeDescPath=.,noServer=true,stdout,script=${MASTER_BTRACE_DIR}/BTraceJobExecuter.class"
+
+   # Export the required hadoop parameters
+   export HADOOP_OPTS
+   export HADOOP_CLASSPATH
+
+   # Execute the hadoop command
+   ${HADOOP_HOME}/bin/hadoop "$@"
+fi
